@@ -3,7 +3,7 @@ import time
 import logger as lg
 
 # Set up GPIO (change these pin numbers to match your setup)
-SERVO_PIN = 18
+SERVO_PIN = 11
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 
@@ -47,7 +47,7 @@ def press_fishing_button(action):
 # Example usage:
 if __name__ == "__main__":
     try:
-        press_fishing_button()  # Physically click the key (e.g., "a")
+        press_fishing_button('Testing')  # Physically click the key (e.g., "a")
 
     except Exception as e:
         lg.log(f"Error: {e}")
