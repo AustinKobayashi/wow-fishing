@@ -115,6 +115,7 @@ def main():
         pass
     
     lg.log('Exiting...')
+    sv.cleanup()
     lg.log(f'Maximum volume: {max_volume}')
     plt.figure(figsize=(15, 5))
 
