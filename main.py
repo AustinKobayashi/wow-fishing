@@ -3,7 +3,7 @@ import datetime
 import pyaudio
 import numpy as np
 import time
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import logger as lg
 import servo as sv
 import normal_distribution as nd
@@ -117,28 +117,34 @@ def main():
     lg.log('Exiting...')
     sv.cleanup()
     lg.log(f'Maximum volume: {max_volume}')
-    plt.figure(figsize=(15, 5))
 
-    plt.subplot(1, 3, 1)
-    plt.hist(volumes, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-    plt.xlabel('Volume')
-    plt.ylabel('Frequency')
-    plt.title('Volume Distribution')
+    with open('stats.txt', 'w') as f:
+        f.write(f'Maximum volume: {max_volume}\n')
+        f.write(f'Mean volume: {np.mean(volumes)}\n')
+        f.write(f'Reel times: {reel_times}\n')
+        f.write(f'Cast times: {cast_times}\n')
+    # plt.figure(figsize=(15, 5))
 
-    plt.subplot(1, 3, 2)
-    plt.hist(reel_times, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-    plt.xlabel('Seconds')
-    plt.ylabel('Frequency')
-    plt.title('Reel Time Distribution')
+    # plt.subplot(1, 3, 1)
+    # plt.hist(volumes, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
+    # plt.xlabel('Volume')
+    # plt.ylabel('Frequency')
+    # plt.title('Volume Distribution')
 
-    plt.subplot(1, 3, 3)
-    plt.hist(cast_times, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-    plt.xlabel('Seconds')
-    plt.ylabel('Frequency')
-    plt.title('Cast Time Distribution')
+    # plt.subplot(1, 3, 2)
+    # plt.hist(reel_times, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
+    # plt.xlabel('Seconds')
+    # plt.ylabel('Frequency')
+    # plt.title('Reel Time Distribution')
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(PLOTS_FOLDER, f'{datetime.datetime.now().strftime("%d-%m-%Y")}-plot.png'))
+    # plt.subplot(1, 3, 3)
+    # plt.hist(cast_times, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
+    # plt.xlabel('Seconds')
+    # plt.ylabel('Frequency')
+    # plt.title('Cast Time Distribution')
+
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(PLOTS_FOLDER, f'{datetime.datetime.now().strftime("%d-%m-%Y")}-plot.png'))
 
 if __name__ == '__main__':
     main()

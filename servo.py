@@ -7,7 +7,7 @@ SERVO_PIN = 11
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 
-SERVO_NEUTRAL = 3
+SERVO_NEUTRAL = 3.7
 
 # Configure servo parameters
 servo = GPIO.PWM(SERVO_PIN, 50)  # 50 Hz frequency for most servos
@@ -21,7 +21,7 @@ def press_fishing_button(action):
     lg.log(f'Pressing {action} button...')
 
     # Define servo angles for key press and release (adjust as needed)
-    press_angle = 40  # Angle to press the key
+    press_angle = 20  # Angle to press the key
     release_angle = 0  # Angle to release the key
 
     # Move the servo to press the key at a controlled speed
