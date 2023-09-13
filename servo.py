@@ -7,9 +7,11 @@ SERVO_PIN = 11
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 
+SERVO_NEUTRAL = 3
+
 # Configure servo parameters
 servo = GPIO.PWM(SERVO_PIN, 50)  # 50 Hz frequency for most servos
-servo.start(2.5)  # Set the servo to its neutral position (adjust as needed)
+servo.start(SERVO_NEUTRAL)  # Set the servo to its neutral position (adjust as needed)
 
 # Global variable to determine servo speed (adjust as needed)
 SERVO_SPEED = 0.1  # Lower valu es make the servo move slower
@@ -23,15 +25,15 @@ def press_fishing_button(action):
     release_angle = 0  # Angle to release the key
 
     # Move the servo to press the key at a controlled speed
-    servo.ChangeDutyCycle(2.5 + press_angle / 18)
+    servo.ChangeDutyCycle(SERVO_NEUTRAL + press_angle / 18)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key press speed
 
     # Return the servo to its neutral position at a controlled speed
-    servo.ChangeDutyCycle(2.5)
+    servo.ChangeDutyCycle(SERVO_NEUTRAL)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
     # Move the servo to release the key at a controlled speed (optional)
-    servo.ChangeDutyCycle(2.5 + release_angle / 18)
+    servo.ChangeDutyCycle(SERVO_NEUTRAL + release_angle / 18)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
 
