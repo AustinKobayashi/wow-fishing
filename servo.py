@@ -4,7 +4,7 @@ import logger as lg
 
 # Set up GPIO (change these pin numbers to match your setup)
 SERVO_PIN = 11
-GPIO.setmode(GPIO.BCM)
+GPIO.setmode(GPIO.BOARD)
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 
 # Configure servo parameters
