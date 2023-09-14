@@ -38,6 +38,21 @@ MAX_RUN_TIME = 60 * 60 * 3
 PLOTS_FOLDER = 'plots'
 
 
+try:
+    with open('config.txt', 'r') as config_file:
+        for line in config_file:
+            key, value = line.strip().split('=')
+            key = key.strip()
+            value = value.strip()
+            
+            if key in globals():
+                globals()[key] = float(value)
+except FileNotFoundError:
+    print('Config file "config.txt" not found. Using default values.')
+except Exception as e:
+    print(f'Error reading configuration: {e}')
+
+
 def idle(min_duration, max_duration):
     sleep_duration = np.random.uniform(min_duration, max_duration)
     lg.log(f'Idle for {sleep_duration:.2f} seconds')
@@ -54,6 +69,9 @@ def main():
         volumes = []
         reel_times = []
         cast_times = []
+
+        sv.press_fishing_button('Casting')
+
         while True:
             sv.set_neutral()
 
