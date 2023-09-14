@@ -6,8 +6,8 @@ pi = pigpio.pi()
 
 SERVO_PIN = 27
 SERVO_NEUTRAL = 825
-SERVO_CLICK = 950
-SERVO_SPEED = 0.1
+SERVO_CLICK = 975
+SERVO_SPEED = 0.5
 
 
 def set_neutral():
