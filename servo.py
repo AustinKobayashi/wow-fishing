@@ -44,6 +44,6 @@ if __name__ == "__main__":
             time.sleep(1)
 
     except Exception as e:
-        lg.log(f"Error: {e}")
+        lg.log('Error: {}'.format(e))
     
     cleanup()
