@@ -17,7 +17,7 @@ CHECK_INTERVAL = 0.01     # Check interval in seconds
 
 REEL_TIME_MIN = 0.9
 REEL_TIME_MAX = 2
-REEL_TIME_TAIL_PROBABILITY = 0.005
+REEL_TIME_TAIL_PROBABILITY = `0.005`
 REEL_TIME_MEAN_MAX_MODIFIER = 0.6
 REEL_TIME_UNDER_MIN_MODIFIER = 10
 
@@ -54,6 +54,7 @@ def main():
         reel_times = []
         cast_times = []
         while True:
+            sv.set_neutral()
             if time.time() - start_time > MAX_RUN_TIME:
                 lg.log('Max run time reached, exiting...')
                 break

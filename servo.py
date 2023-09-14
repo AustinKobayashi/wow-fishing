@@ -16,6 +16,10 @@ servo.start(SERVO_NEUTRAL)  # Set the servo to its neutral position (adjust as n
 # Global variable to determine servo speed (adjust as needed)
 SERVO_SPEED = 0.1  # Lower valu es make the servo move slower
 
+def set_neutral():
+    servo.ChangeDutyCycle(SERVO_NEUTRAL)
+
+
 # Function to physically click a keyboard key using the servo
 def press_fishing_button(action):
     lg.log(f'Pressing {action} button...')
@@ -29,7 +33,7 @@ def press_fishing_button(action):
     time.sleep(SERVO_SPEED)  # Adjust the duration for key press speed
 
     # Return the servo to its neutral position at a controlled speed
-    servo.ChangeDutyCycle(SERVO_NEUTRAL)
+    set_neutral()
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
     # Move the servo to release the key at a controlled speed (optional)
