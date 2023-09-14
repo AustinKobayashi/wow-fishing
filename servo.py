@@ -5,7 +5,8 @@ import logger as lg
 pi = pigpio.pi()
 
 SERVO_PIN = 27
-SERVO_NEUTRAL = 500
+SERVO_NEUTRAL = 750
+SERVO_CLICK = 900
 SERVO_SPEED = 0.1
 
 def set_neutral():
@@ -16,12 +17,8 @@ def set_neutral():
 def press_fishing_button(action):
     lg.log('Pressing {} button...'.format(action))
 
-    # Define servo angles for key press and release (adjust as needed)
-    press_angle = 1000  # Angle to press the key
-    release_angle = 0  # Angle to release the key
-
     # Move the servo to press the key at a controlled speed
-    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL + press_angle)
+    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_CLICK)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key press speed
 
     # Return the servo to its neutral position at a controlled speed
@@ -29,7 +26,7 @@ def press_fishing_button(action):
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
     # Move the servo to release the key at a controlled speed (optional)
-    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL + release_angle)
+    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
 
