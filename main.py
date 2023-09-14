@@ -126,6 +126,10 @@ def main():
     lg.log('Exiting...')
     sv.cleanup()
     lg.log(f'Maximum volume: {max_volume}')
+    lg.log(f'Mean volume: {np.mean(volumes)}')
+    lg.log(f'Idle counts: {idle_counts}')
+    lg.log(f'Reel times: {reel_times}')
+    lg.log(f'Cast times: {cast_times}')
 
     with open('stats.txt', 'w') as f:
         f.write(f'Maximum volume: {max_volume}\n')
