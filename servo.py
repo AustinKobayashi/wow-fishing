@@ -6,9 +6,7 @@ pi = pigpio.pi()
 
 SERVO_PIN = 11
 SERVO_NEUTRAL = 0
-
-# Global variable to determine servo speed (adjust as needed)
-SERVO_SPEED = 0.1  # Lower valu es make the servo move slower
+SERVO_SPEED = 0.1
 
 def set_neutral():
     pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL)
@@ -28,7 +26,7 @@ def press_fishing_button(action):
 
     # Return the servo to its neutral position at a controlled speed
     set_neutral()
-    time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
+    # time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
     # Move the servo to release the key at a controlled speed (optional)
     # servo.ChangeDutyCycle(SERVO_NEUTRAL + release_angle / 18)
