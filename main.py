@@ -36,6 +36,7 @@ IDLE_PROBABILITY = 0.0023
 MAX_RUN_TIME = 60 * 60 * 3
 
 PLOTS_FOLDER = 'plots'
+WOW_FISHING_TIME = 25
 
 
 def idle(min_duration, max_duration):
@@ -90,8 +91,9 @@ def main():
 
                 lg.log(f'Reel time: {reel_time}')
                 time.sleep(reel_time)
-                
-                sv.press_fishing_button('Reeling')
+
+                if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME and reel_time <= 3:
+                    sv.press_fishing_button('Reeling')
 
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
                 cast_times.append(cast_time)
