@@ -1,23 +1,17 @@
-import RPi.GPIO as GPIO
+import pigpio
 import time
 import logger as lg
 
-# Set up GPIO (change these pin numbers to match your setup)
+pi = pigpio.pi()
+
 SERVO_PIN = 11
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(SERVO_PIN, GPIO.OUT)
-
-SERVO_NEUTRAL = 3.7
-
-# Configure servo parameters
-servo = GPIO.PWM(SERVO_PIN, 50)  # 50 Hz frequency for most servos
-servo.start(SERVO_NEUTRAL)  # Set the servo to its neutral position (adjust as needed)
+SERVO_NEUTRAL = 0
 
 # Global variable to determine servo speed (adjust as needed)
 SERVO_SPEED = 0.1  # Lower valu es make the servo move slower
 
 def set_neutral():
-    servo.ChangeDutyCycle(SERVO_NEUTRAL)
+    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL)
 
 
 # Function to physically click a keyboard key using the servo
@@ -29,7 +23,7 @@ def press_fishing_button(action):
     release_angle = 0  # Angle to release the key
 
     # Move the servo to press the key at a controlled speed
-    servo.ChangeDutyCycle(SERVO_NEUTRAL + press_angle / 18)
+    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL + press_angle / 18)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key press speed
 
     # Return the servo to its neutral position at a controlled speed
@@ -37,13 +31,12 @@ def press_fishing_button(action):
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
     # Move the servo to release the key at a controlled speed (optional)
-    servo.ChangeDutyCycle(SERVO_NEUTRAL + release_angle / 18)
-    time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
+    # servo.ChangeDutyCycle(SERVO_NEUTRAL + release_angle / 18)
+    # time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
 
 def cleanup():
-    servo.stop()
-    GPIO.cleanup()
+    pi.stop()
 
 
 if __name__ == "__main__":
