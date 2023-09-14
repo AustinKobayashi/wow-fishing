@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.stats as stats
 import math
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 def calculate_z_score(tail_probability):
     # Calculate the z-score using the CDF of the standard normal distribution
@@ -40,25 +40,25 @@ def get_normal_distribution(min_value, max_value, tail_probability, mean_max_mod
     return random_value
 
 
-scipy_ranges = [stats.norm.ppf(1 - 0.005 / 2) for i in range(10000)]
-numpy_ranges = [calculate_z_score(0.005) for i in range(10000)]
+# scipy_ranges = [stats.norm.ppf(1 - 0.005 / 2) for i in range(10000)]
+# numpy_ranges = [calculate_z_score(0.005) for i in range(10000)]
 
-print(f'Scipy mean: {np.mean(scipy_ranges)}')
-print(f'Numpy mean: {np.mean(numpy_ranges)}')
+# print(f'Scipy mean: {np.mean(scipy_ranges)}')
+# print(f'Numpy mean: {np.mean(numpy_ranges)}')
 
-plt.figure(figsize=(12, 6))
+# plt.figure(figsize=(12, 6))
 
-plt.subplot(1, 2, 1)
-plt.hist(scipy_ranges, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-plt.xlabel('Seconds')
-plt.ylabel('Frequency')
-plt.title('Scipy Z-Score Distribution')
+# plt.subplot(1, 2, 1)
+# plt.hist(scipy_ranges, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
+# plt.xlabel('Seconds')
+# plt.ylabel('Frequency')
+# plt.title('Scipy Z-Score Distribution')
 
-plt.subplot(1, 2, 2)
-plt.hist(numpy_ranges, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-plt.xlabel('Seconds')
-plt.ylabel('Frequency')
-plt.title('Numpy Z-Score Distribution')
+# plt.subplot(1, 2, 2)
+# plt.hist(numpy_ranges, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
+# plt.xlabel('Seconds')
+# plt.ylabel('Frequency')
+# plt.title('Numpy Z-Score Distribution')
 
-plt.tight_layout()
-plt.show()
+# plt.tight_layout()
+# plt.show()
