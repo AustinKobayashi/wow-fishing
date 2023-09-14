@@ -14,7 +14,7 @@ def set_neutral():
 
 # Function to physically click a keyboard key using the servo
 def press_fishing_button(action):
-    lg.log(f'Pressing {action} button...')
+    lg.log('Pressing {} button...'.format(action))
 
     # Define servo angles for key press and release (adjust as needed)
     press_angle = 20  # Angle to press the key
