@@ -29,8 +29,8 @@ def press_fishing_button(action):
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
     # Move the servo to release the key at a controlled speed (optional)
-    # servo.ChangeDutyCycle(SERVO_NEUTRAL + release_angle / 18)
-    # time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
+    pi.set_servo_pulsewidth(SERVO_NEUTRAL + release_angle)
+    time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
 
 def cleanup():
