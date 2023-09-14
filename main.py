@@ -31,7 +31,7 @@ LAST_CAST_MAX = 60
 
 IDLE_TIME_MIN = 10
 IDLE_TIME_MAX = 120
-IDLE_PROBABILITY = 0.013
+IDLE_PROBABILITY = 0.0023
 
 MAX_RUN_TIME = 60 * 60 * 3
 
@@ -50,6 +50,7 @@ def main():
         last_cast_time = time.time()
 
         max_volume = 0
+        idle_counts = 0
         volumes = []
         reel_times = []
         cast_times = []
@@ -104,6 +105,7 @@ def main():
                 last_cast_time = time.time()
 
                 if np.random.rand() < IDLE_PROBABILITY:
+                    idle_counts += 1
                     idle(IDLE_TIME_MIN, IDLE_TIME_MAX)
                     last_cast_time = time.time()
                     
@@ -123,6 +125,7 @@ def main():
     with open('stats.txt', 'w') as f:
         f.write(f'Maximum volume: {max_volume}\n')
         f.write(f'Mean volume: {np.mean(volumes)}\n')
+        f.write(f'Idle counts: {idle_counts}\n')
         f.write(f'Reel times: {reel_times}\n')
         f.write(f'Cast times: {cast_times}\n')
     # plt.figure(figsize=(15, 5))
