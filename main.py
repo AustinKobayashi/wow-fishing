@@ -92,7 +92,7 @@ def main():
                 lg.log(f'Reel time: {reel_time}')
                 time.sleep(reel_time)
 
-                if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME or reel_time > 3:
+                if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME or reel_time < 3:
                     sv.press_fishing_button('Reeling')
 
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
