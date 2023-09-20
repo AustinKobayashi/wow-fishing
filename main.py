@@ -124,7 +124,11 @@ def main():
         stream.stop_stream()
         stream.close()
         audio.terminate()
-    
+    finally:
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+        
     lg.log('Exiting...')
     sv.cleanup()
     lg.log(f'Maximum volume: {max_volume}')
