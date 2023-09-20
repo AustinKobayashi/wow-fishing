@@ -1,3 +1,3 @@
 source venv/bin/activate
-sudo pigpio
+sudo pigpiod
 python main.py 2>/dev/null 
