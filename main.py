@@ -121,7 +121,9 @@ def main():
             time.sleep(CHECK_INTERVAL)
     
     except KeyboardInterrupt:
-        pass
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
     
     lg.log('Exiting...')
     sv.cleanup()
