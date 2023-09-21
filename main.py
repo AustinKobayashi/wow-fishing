@@ -36,8 +36,8 @@ IDLE_PROBABILITY = 0.0023
 MAX_RUN_TIME = 60 * 60 * 5
 
 PLOTS_FOLDER = 'plots'
-WOW_FISHING_TIME = 25
-
+WOW_FISHING_TIME = 28
+REEL_TIME_DELAY_AFTER_CAST = 1
 
 def idle(min_duration, max_duration):
     sleep_duration = np.random.uniform(min_duration, max_duration)
@@ -83,7 +83,7 @@ def main():
             audio_data = np.frombuffer(stream.read(1024), dtype=np.int16)
             audio_level = np.abs(audio_data).mean()
             
-            if audio_level > THRESHOLD:
+            if audio_level > THRESHOLD and time.time() - last_cast_time > REEL_TIME_DELAY_AFTER_CAST:
                 lg.log(f'\t\tAudio level above threshold: {audio_level}')
 
                 reel_time = nd.get_normal_distribution(REEL_TIME_MIN, REEL_TIME_MAX, REEL_TIME_TAIL_PROBABILITY, REEL_TIME_MEAN_MAX_MODIFIER, REEL_TIME_UNDER_MIN_MODIFIER)
@@ -94,6 +94,8 @@ def main():
 
                 if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME and reel_time < 3:
                     sv.press_fishing_button('Reeling')
+                else:
+                    time.sleep(WOW_FISHING_TIME - (time.time() - last_cast_time) - reel_time)
 
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
                 cast_times.append(cast_time)
