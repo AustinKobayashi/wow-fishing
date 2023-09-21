@@ -95,7 +95,7 @@ def main():
                 if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME and reel_time < 3:
                     sv.press_fishing_button('Reeling')
                 else:
-                    time.sleep(max(WOW_FISHING_TIME - (time.time() - last_cast_time), 0))
+                    time.sleep(max(WOW_FISHING_TIME - (time.time() - last_cast_time), 0.3))
 
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
                 cast_times.append(cast_time)
