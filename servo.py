@@ -5,7 +5,7 @@ import logger as lg
 pi = pigpio.pi()
 
 SERVO_PIN = 27
-SERVO_NEUTRAL = 825
+SERVO_NEUTRAL = 800
 SERVO_CLICK = 950
 SERVO_SPEED = 0.1
 
