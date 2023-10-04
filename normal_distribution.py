@@ -35,7 +35,7 @@ def get_normal_distribution(min_value, max_value, tail_probability, mean_max_mod
     
     # Ensure the value is within the specified range
     if random_value < min_value:
-        random_value = mean + np.random.uniform(0, under_min_modifier * ((min_value + max_value) / 2))
+        return get_normal_distribution(min_value, max_value, tail_probability, mean_max_modifier, under_min_modifier, mean)
     
     return random_value
 

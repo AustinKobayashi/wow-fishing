@@ -16,9 +16,9 @@ THRESHOLD = 7000          # Adjust this threshold as needed
 CHECK_INTERVAL = 0.01     # Check interval in seconds
 
 REEL_TIME_MIN = 0.985
-REEL_TIME_MAX = 2
-REEL_TIME_TAIL_PROBABILITY = 0.005
-REEL_TIME_MEAN_MAX_MODIFIER = 0.6
+REEL_TIME_MAX = 4
+REEL_TIME_TAIL_PROBABILITY = 0.0005
+REEL_TIME_MEAN_MAX_MODIFIER = 0.4
 REEL_TIME_UNDER_MIN_MODIFIER = 10
 
 CAST_TIME_MIN = 0.985
@@ -34,6 +34,8 @@ IDLE_TIME_MAX = 120
 IDLE_PROBABILITY = 0.0023
 
 MAX_RUN_TIME = 60 * 60 * 5
+
+DONT_REEL_TIME = 2.1
 
 PLOTS_FOLDER = 'plots'
 WOW_FISHING_TIME = 28
@@ -92,7 +94,7 @@ def main():
                 lg.log(f'Reel time: {reel_time}')
                 time.sleep(reel_time)
 
-                if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME and reel_time < 3:
+                if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME and reel_time < DONT_REEL_TIME:
                     sv.press_fishing_button('Reeling')
                 else:
                     time.sleep(max(WOW_FISHING_TIME - (time.time() - last_cast_time), 0.3))
