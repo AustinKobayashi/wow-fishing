@@ -112,6 +112,12 @@ def main():
                     print('Not reeling')
                     time.sleep(max(WOW_FISHING_TIME - (time.time() - last_cast_time), 0.3))
 
+                print('Checking if should idle')
+                if np.random.rand() < IDLE_PROBABILITY:
+                    idle_counts += 1
+                    idle(IDLE_TIME_MIN, IDLE_TIME_MAX)
+                    last_cast_time = time.time()
+
                 print('Getting cast_time')
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
                 cast_times.append(cast_time)
@@ -127,12 +133,6 @@ def main():
                     max_volume = audio_level
 
                 last_cast_time = time.time()
-
-                print('Checking if should idle')
-                if np.random.rand() < IDLE_PROBABILITY:
-                    idle_counts += 1
-                    idle(IDLE_TIME_MIN, IDLE_TIME_MAX)
-                    last_cast_time = time.time()
             
             print('Stopping audio stream')
             stream.stop_stream()
