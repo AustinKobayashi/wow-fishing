@@ -61,19 +61,24 @@ def main():
         sv.press_fishing_button('Casting')
 
         while True:
+            print('Setting servo neutral')
             sv.set_neutral()
 
+            print('Checking if over max run time: {}'.format(time.time() - start_time > MAX_RUN_TIME))
             if time.time() - start_time > MAX_RUN_TIME:
                 lg.log('Max run time reached, exiting...')
-                break
-
+                break  
+            
+            print('Checking if last cast time is over max: {}'.format(time.time() - last_cast_time > LAST_CAST_MAX))
             if time.time() - last_cast_time > LAST_CAST_MAX:
                 lg.log('Did not cast, recasting...')
                 sv.press_fishing_button('Casting')
                 last_cast_time = time.time()
 
+            print('Creating audio object')
             audio = pyaudio.PyAudio()
-    
+
+            print('Opening audio stream')
             stream = audio.open(format=FORMAT,
                                 channels=CHANNELS,
                                 rate=RATE,
@@ -82,29 +87,39 @@ def main():
 
             time.sleep(0.01)
 
+            print('Reading audio data')
             audio_data = np.frombuffer(stream.read(1024), dtype=np.int16)
+
+            print('Calculating audio level')
             audio_level = np.abs(audio_data).mean()
             
+            print('Checking if audio level is above threshold')
             if audio_level > THRESHOLD and time.time() - last_cast_time > REEL_TIME_DELAY_AFTER_CAST:
                 lg.log(f'\t\tAudio level above threshold: {audio_level}')
 
+                print('Getting reel_time')
                 reel_time = nd.get_normal_distribution(REEL_TIME_MIN, REEL_TIME_MAX, REEL_TIME_TAIL_PROBABILITY, REEL_TIME_MEAN_MAX_MODIFIER, REEL_TIME_UNDER_MIN_MODIFIER)
                 reel_times.append(reel_time)
 
                 lg.log(f'Reel time: {reel_time}')
                 time.sleep(reel_time)
 
+                print('Checking if should reel')
                 if (time.time() - last_cast_time) + reel_time < WOW_FISHING_TIME and reel_time < DONT_REEL_TIME:
+                    print('Reeling')
                     sv.press_fishing_button('Reeling')
                 else:
+                    print('Not reeling')
                     time.sleep(max(WOW_FISHING_TIME - (time.time() - last_cast_time), 0.3))
 
+                print('Getting cast_time')
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
                 cast_times.append(cast_time)
 
                 lg.log(f'Cast time: {cast_time}')
                 time.sleep(cast_time)
 
+                print('Casting')
                 sv.press_fishing_button('Casting')
 
                 volumes.append(audio_level)
@@ -113,15 +128,22 @@ def main():
 
                 last_cast_time = time.time()
 
+                print('Checking if should idle')
                 if np.random.rand() < IDLE_PROBABILITY:
                     idle_counts += 1
                     idle(IDLE_TIME_MIN, IDLE_TIME_MAX)
                     last_cast_time = time.time()
-                    
+            
+            print('Stopping audio stream')
             stream.stop_stream()
+
+            print('Closing audio stream')
             stream.close()
+
+            print('Terminating audio object')
             audio.terminate()
 
+            print('Sleeping for {} seconds'.format(CHECK_INTERVAL))
             time.sleep(CHECK_INTERVAL)
     
     except KeyboardInterrupt:
