@@ -5,13 +5,12 @@ import logger as lg
 pi = pigpio.pi()
 
 SERVO_PIN = 27
-SERVO_NEUTRAL = 825
-SERVO_CLICK = 960
+SERVO_CLICK = 915
 SERVO_SPEED = 0.1
 
 
 def set_neutral():
-    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL)
+    pi.set_servo_pulsewidth(SERVO_PIN, 0)
 
 
 # Function to physically click a keyboard key using the servo
@@ -24,10 +23,6 @@ def press_fishing_button(action):
 
     # Return the servo to its neutral position at a controlled speed
     set_neutral()
-    time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
-
-    # Move the servo to release the key at a controlled speed (optional)
-    pi.set_servo_pulsewidth(SERVO_PIN, SERVO_NEUTRAL)
     time.sleep(SERVO_SPEED)  # Adjust the duration for key release speed
 
 
