@@ -120,7 +120,6 @@ def main():
                     max_volume = audio_level
 
                 last_cast_time = time.time()
-                time.sleep(2)
 
             time.sleep(CHECK_INTERVAL)
     
