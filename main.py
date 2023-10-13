@@ -38,7 +38,7 @@ DONT_REEL_TIME = 2.1
 
 PLOTS_FOLDER = 'plots'
 WOW_FISHING_TIME = 28
-REEL_TIME_DELAY_AFTER_CAST = 1
+REEL_TIME_DELAY_AFTER_CAST = 1.5
 
 def idle(min_duration, max_duration):
     sleep_duration = np.random.uniform(min_duration, max_duration)
