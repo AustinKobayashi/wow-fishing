@@ -57,6 +57,20 @@ def main():
         reel_times = []
         cast_times = []
 
+        print('Creating audio object')
+        audio = pyaudio.PyAudio()
+
+        print('Opening audio stream')
+        try:
+            stream = audio.open(format=FORMAT,
+                                channels=CHANNELS,
+                                rate=RATE,
+                                input=True,
+                                frames_per_buffer=1024)
+        except Exception as e:
+            print('Error opening audio stream: {e}'.format(e))
+            return
+
         sv.press_fishing_button('Casting')
 
         while True:
@@ -73,16 +87,6 @@ def main():
                 lg.log('Did not cast, recasting...')
                 sv.press_fishing_button('Casting')
                 last_cast_time = time.time()
-
-            print('Creating audio object')
-            audio = pyaudio.PyAudio()
-
-            print('Opening audio stream')
-            stream = audio.open(format=FORMAT,
-                                channels=CHANNELS,
-                                rate=RATE,
-                                input=True,
-                                frames_per_buffer=1024)
 
             time.sleep(0.01)
 
@@ -135,15 +139,6 @@ def main():
                     max_volume = audio_level
 
                 last_cast_time = time.time()
-            
-            print('Stopping audio stream')
-            stream.stop_stream()
-
-            print('Closing audio stream')
-            stream.close()
-
-            print('Terminating audio object')
-            audio.terminate()
 
             print('Sleeping for {} seconds'.format(CHECK_INTERVAL))
             time.sleep(CHECK_INTERVAL)
@@ -156,8 +151,11 @@ def main():
         lg.log('Error: {}'.format(e))
         lg.log(traceback.format_exc())
     finally:
+        lg.log('Stopping audio stream')
         stream.stop_stream()
+        lg.log('Closing audio stream')
         stream.close()
+        lg.log('Terminating audio object')
         audio.terminate()
         
     lg.log('Exiting...')
