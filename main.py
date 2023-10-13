@@ -66,7 +66,7 @@ def main():
         while not stream.is_active():
             lg.log('Waiting for audio stream to be active')
             time.sleep(0.1)
-            
+
         sv.press_fishing_button('Casting')
 
         while True:
@@ -83,8 +83,7 @@ def main():
 
             time.sleep(0.01)
 
-            while stream.get_read_available() > 0:
-                _ = stream.read(1024)
+            _ = stream.read(1024)
             audio_data = np.frombuffer(stream.read(1024), dtype=np.int16)
 
             audio_level = np.abs(audio_data).mean()
