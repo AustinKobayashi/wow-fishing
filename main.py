@@ -1,9 +1,8 @@
-import os
-import datetime
 import pyaudio
 import numpy as np
 import time
 # import matplotlib.pyplot as plt
+import traceback
 import logger as lg
 import servo as sv
 import normal_distribution as nd
@@ -88,6 +87,9 @@ def main():
             time.sleep(0.01)
 
             print('Reading audio data')
+            while not stream.is_active():
+                print('Waiting for audio stream to be active')
+                time.sleep(0.1)
             audio_data = np.frombuffer(stream.read(1024), dtype=np.int16)
 
             print('Calculating audio level')
@@ -150,6 +152,9 @@ def main():
         stream.stop_stream()
         stream.close()
         audio.terminate()
+    except Exception as e:
+        lg.log('Error: {}'.format(e))
+        lg.log(traceback.format_exc())
     finally:
         stream.stop_stream()
         stream.close()
