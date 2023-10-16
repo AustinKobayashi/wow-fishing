@@ -1,9 +1,8 @@
-import os
-import datetime
 import pyaudio
 import numpy as np
 import time
 # import matplotlib.pyplot as plt
+import traceback
 import logger as lg
 import servo as sv
 import normal_distribution as nd
@@ -39,7 +38,7 @@ DONT_REEL_TIME = 2.1
 
 PLOTS_FOLDER = 'plots'
 WOW_FISHING_TIME = 28
-REEL_TIME_DELAY_AFTER_CAST = 1
+REEL_TIME_DELAY_AFTER_CAST = 1.5
 
 def idle(min_duration, max_duration):
     sleep_duration = np.random.uniform(min_duration, max_duration)
@@ -58,6 +57,16 @@ def main():
         reel_times = []
         cast_times = []
 
+        audio = pyaudio.PyAudio()
+        stream = audio.open(format=FORMAT,
+                            channels=CHANNELS,
+                            rate=RATE,
+                            input=True,
+                            frames_per_buffer=1024)
+        while not stream.is_active():
+            lg.log('Waiting for audio stream to be active')
+            time.sleep(0.1)
+
         sv.press_fishing_button('Casting')
 
         while True:
@@ -65,24 +74,18 @@ def main():
 
             if time.time() - start_time > MAX_RUN_TIME:
                 lg.log('Max run time reached, exiting...')
-                break
-
+                break  
+            
             if time.time() - last_cast_time > LAST_CAST_MAX:
                 lg.log('Did not cast, recasting...')
                 sv.press_fishing_button('Casting')
                 last_cast_time = time.time()
 
-            audio = pyaudio.PyAudio()
-    
-            stream = audio.open(format=FORMAT,
-                                channels=CHANNELS,
-                                rate=RATE,
-                                input=True,
-                                frames_per_buffer=1024)
-
             time.sleep(0.01)
 
+            _ = stream.read(1024)
             audio_data = np.frombuffer(stream.read(1024), dtype=np.int16)
+
             audio_level = np.abs(audio_data).mean()
             
             if audio_level > THRESHOLD and time.time() - last_cast_time > REEL_TIME_DELAY_AFTER_CAST:
@@ -99,6 +102,11 @@ def main():
                 else:
                     time.sleep(max(WOW_FISHING_TIME - (time.time() - last_cast_time), 0.3))
 
+                if np.random.rand() < IDLE_PROBABILITY:
+                    idle_counts += 1
+                    idle(IDLE_TIME_MIN, IDLE_TIME_MAX)
+                    last_cast_time = time.time()
+
                 cast_time = nd.get_normal_distribution(CAST_TIME_MIN, CAST_TIME_MAX, CAST_TIME_TAIL_PROBABILITY, CAST_TIME_MEAN_MAX_MODIFIER, CAST_TIME_UNDER_MIN_MODIFIER, reel_time)
                 cast_times.append(cast_time)
 
@@ -113,21 +121,11 @@ def main():
 
                 last_cast_time = time.time()
 
-                if np.random.rand() < IDLE_PROBABILITY:
-                    idle_counts += 1
-                    idle(IDLE_TIME_MIN, IDLE_TIME_MAX)
-                    last_cast_time = time.time()
-                    
-            stream.stop_stream()
-            stream.close()
-            audio.terminate()
-
             time.sleep(CHECK_INTERVAL)
     
-    except KeyboardInterrupt:
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
+    except Exception as e:
+        lg.log('Error: {}'.format(e))
+        lg.log(traceback.format_exc())
     finally:
         stream.stop_stream()
         stream.close()
