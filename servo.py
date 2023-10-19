@@ -5,7 +5,7 @@ import logger as lg
 pi = pigpio.pi()
 
 SERVO_PIN = 27
-SERVO_CLICK = 975
+SERVO_CLICK = 1000
 SERVO_SPEED = 0.1
 
 
@@ -32,7 +32,7 @@ def cleanup():
 
 if __name__ == "__main__":
     try:
-        for i in range(10):
+        for i in range(100):
             press_fishing_button('Testing')  # Physically click the key (e.g., "a")
             time.sleep(1)
 
