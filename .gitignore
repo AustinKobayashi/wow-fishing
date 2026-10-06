@@ -121,6 +121,10 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
 .venv
 env/
 venv/
@@ -160,6 +164,22 @@ cython_debug/
 #.idea/
 
 logs/
+plots/
 *.png
 stats.txt
 stats*.txt
+
+# Local troubleshooting backups
+*.bak
+*.py.before-*
+
+# Editor caches and temporary files
+.ruff_cache/
+*.swp
+*.swo
+*~
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -7,10 +7,11 @@ import logger as lg
 import servo as sv
 import normal_distribution as nd
 
+
 # Configuration
 FORMAT = pyaudio.paInt16  # Format of audio data (16-bit)
 CHANNELS = 1              # Number of audio channels (1 for mono)
-RATE = 44100              # Sample rate (samples per second)
+RATE = 48000              # Sample rate (samples per second)
 THRESHOLD = 7000          # Adjust this threshold as needed
 CHECK_INTERVAL = 0.01     # Check interval in seconds
 
@@ -30,7 +31,7 @@ LAST_CAST_MAX = 60
 
 IDLE_TIME_MIN = 10
 IDLE_TIME_MAX = 120
-IDLE_PROBABILITY = 0.0023
+IDLE_PROBABILITY = 0.0013
 
 MAX_RUN_TIME = 60 * 60 * 5
 
@@ -47,6 +48,8 @@ def idle(min_duration, max_duration):
 
 
 def main():  
+    audio = None
+    stream = None
     try:
         start_time = time.time()
         last_cast_time = time.time()
@@ -83,8 +86,13 @@ def main():
 
             time.sleep(0.01)
 
-            _ = stream.read(1024)
-            audio_data = np.frombuffer(stream.read(1024), dtype=np.int16)
+            # Discard audio queued during servo movement and timing delays.
+            queued_frames = stream.get_read_available()
+            if queued_frames > 0:
+                stream.read(queued_frames, exception_on_overflow=False)
+            audio_data = np.frombuffer(
+                stream.read(1024, exception_on_overflow=False), dtype=np.int16
+            )
 
             audio_level = np.abs(audio_data).mean()
             
@@ -127,12 +135,19 @@ def main():
         lg.log('Error: {}'.format(e))
         lg.log(traceback.format_exc())
     finally:
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
+        if stream is not None:
+            try:
+                stream.close()
+            except OSError as e:
+                lg.log(f'Audio stream cleanup: {e}')
+        if audio is not None:
+            audio.terminate()
+        sv.cleanup()
+
+    if stream is None:
+        return
         
     lg.log('Exiting...')
-    sv.cleanup()
     lg.log(f'Maximum volume: {max_volume}')
     lg.log(f'Mean volume: {np.mean(volumes)}')
     lg.log(f'Idle counts: {idle_counts}')
