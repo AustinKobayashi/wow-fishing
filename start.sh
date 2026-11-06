@@ -1,4 +1,7 @@
-sudo pkill python
-source venv/bin/activate
-sudo pigpiod
-python main.py 2>/dev/null 
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+if [[ -f venv/bin/activate ]]; then
+    source venv/bin/activate
+fi
+exec python3 webui.py "$@"

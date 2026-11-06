@@ -1,0 +1,18 @@
+# Send only the runtime and its tests to the Docker builder.
+**
+!Dockerfile
+!requirements.txt
+!configuration.py
+!logger.py
+!main.py
+!normal_distribution.py
+!servo.py
+!webui.py
+!web/
+!web/**
+!tests/
+!tests/**
+**/__pycache__/
+**/*.pyc
+**/.gitignore
+web/preview.png
