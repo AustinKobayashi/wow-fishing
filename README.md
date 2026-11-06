@@ -113,6 +113,8 @@ You can still run `python3 main.py` for a terminal-only session using the same s
 
 ### Log a catch
 
+Each saved fish row has **Edit** and **Remove** buttons. **Edit** opens that row in place to change its fish name, total amount, or Stacks flag. **Save row** updates the all-session rates, while **Cancel** discards the draft. Rows that match the same fish and Stacks flag are combined. A session's location, duration, and creation date cannot be edited. **Remove** asks for confirmation before removing a fish row. **Delete session** asks for confirmation before permanently removing the entire session and its catches. After a successful **Log a catch**, the fish name clears, the amount resets to 1, and **Stacks** resets to checked. Failed saves keep the inputs so you can retry.
+
 Open **Log a catch** from the sidebar or expand its panel beneath Tackle & settings. After fishing, enter your location and session duration in whole seconds, then click **Create session log**. The creation date is recorded automatically. These are manual logs, independent of starting or stopping the bot.
 
 Select a saved log to view its location, creation date, duration, fish counts, and total. Enter a fish name and an amount, then click **Log a catch** to save it immediately. **Stacks** is checked by default. Uncheck it for fish that cannot stack. Logging the same fish with the same flag adds to that line's count. Different flags stay on separate lines and do not change earlier catches. Fish names from all saved logs appear as suggestions, and capitalization differences reuse the original name. **Export session JSON** downloads the selected log:

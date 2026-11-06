@@ -111,6 +111,7 @@ class Controller:
             raise ValueError('Session length must be a nonnegative whole number of seconds within the safe integer range.')
         if not isinstance(location, str) or not 1 <= len(location.strip()) <= 120:
             raise ValueError('Enter a location between 1 and 120 characters.')
+
         with self.lock:
             if self.closing:
                 raise Conflict('The controller is shutting down.')
@@ -126,19 +127,28 @@ class Controller:
         temporary.replace(self.catches_path)
         self.sessions = sessions
 
-    def add_catch(self, session, fish, amount, stacks=True):
+    @staticmethod
+    def validate_catch(fish, amount, stacks):
         if not isinstance(fish, str) or not 1 <= len(fish.strip()) <= 120:
             raise ValueError('Enter a fish name between 1 and 120 characters.')
         if type(amount) is not int or not 1 <= amount <= 9007199254740991:
             raise ValueError('Amount must be a positive whole number within the safe integer range.')
         if type(stacks) is not bool:
             raise ValueError('Stacks must be true or false.')
+
+    def check_catch_session(self, session, date=None):
+        if type(session) is not int or not 0 <= session < len(self.sessions):
+            raise ValueError('Choose an existing fishing session.')
+        if date is not None and date != self.sessions[session]['date']:
+            raise Conflict('The saved session list changed. Reload it and try again.')
+        if self.closing:
+            raise Conflict('The controller is shutting down.')
+
+    def add_catch(self, session, fish, amount, stacks=True, date=None):
+        self.validate_catch(fish, amount, stacks)
         fish = fish.strip()
         with self.lock:
-            if type(session) is not int or not 0 <= session < len(self.sessions):
-                raise ValueError('Choose an existing fishing session.')
-            if self.closing:
-                raise Conflict('The controller is shutting down.')
+            self.check_catch_session(session, date)
             sessions = self.catch_log()['sessions']
             names = {catch['fish'].casefold(): catch['fish']
                      for entry in sessions for catch in entry['catches']}
@@ -153,6 +163,58 @@ class Controller:
                     break
             else:
                 catches.append(dict(fish=fish, amount=amount, stacks=stacks))
+            self.write_catches(sessions)
+            return self.catch_log()
+
+    def check_catch_row(self, session, date, index, original):
+        if not isinstance(date, str):
+            raise ValueError('Provide the original session date.')
+        self.check_catch_session(session, date)
+        catches = self.sessions[session]['catches']
+        if type(index) is not int or not 0 <= index < len(catches):
+            raise ValueError('Choose an existing fish row.')
+        if not isinstance(original, dict):
+            raise ValueError('Provide the original fish row.')
+        if original != catches[index]:
+            raise Conflict('This fish row changed. Cancel your edit and reload the saved log.')
+
+    def edit_catch(self, session, date, index, original, fish, amount, stacks=True):
+        self.validate_catch(fish, amount, stacks)
+        with self.lock:
+            self.check_catch_row(session, date, index, original)
+            names = {catch['fish'].casefold(): catch['fish']
+                     for entry in self.sessions for catch in entry['catches']}
+            fish = names.get(fish.strip().casefold(), fish.strip())
+            sessions = deepcopy(self.sessions)
+            catches = sessions[session]['catches']
+            for other_index, catch in enumerate(catches):
+                if other_index != index and catch['fish'] == fish and catch.get('stacks', True) == stacks:
+                    if catch['amount'] + amount > 9007199254740991:
+                        raise ValueError('The total amount exceeds the safe integer range.')
+                    catch['amount'] += amount
+                    catch['stacks'] = stacks
+                    del catches[index]
+                    break
+            else:
+                catches[index] = dict(fish=fish, amount=amount, stacks=stacks)
+            self.write_catches(sessions)
+            return self.catch_log()
+
+    def remove_catch(self, session, date, index, original):
+        with self.lock:
+            self.check_catch_row(session, date, index, original)
+            sessions = deepcopy(self.sessions)
+            del sessions[session]['catches'][index]
+            self.write_catches(sessions)
+            return self.catch_log()
+
+    def delete_catch_log(self, session, date):
+        if not isinstance(date, str):
+            raise ValueError('Provide the original session date.')
+        with self.lock:
+            self.check_catch_session(session, date)
+            sessions = deepcopy(self.sessions)
+            del sessions[session]
             self.write_catches(sessions)
             return self.catch_log()
 
@@ -304,9 +366,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(controller.stop())
             elif path == '/api/catches':
                 self.json(controller.add_catch(payload.get('session'), payload.get('fish'), payload.get('amount'),
-                                               payload.get('stacks', True)))
+                                               payload.get('stacks', True), payload.get('date')))
             elif path == '/api/catches/new':
                 self.json(controller.create_catch_log(payload.get('sessionLength'), payload.get('location')))
+            elif path == '/api/catches/edit':
+                self.json(controller.edit_catch(payload.get('session'), payload.get('date'), payload.get('index'),
+                                               payload.get('original'), payload.get('fish'), payload.get('amount'),
+                                               payload.get('stacks', True)))
+            elif path == '/api/catches/remove':
+                self.json(controller.remove_catch(payload.get('session'), payload.get('date'),
+                                                 payload.get('index'), payload.get('original')))
+            elif path == '/api/catches/delete':
+                self.json(controller.delete_catch_log(payload.get('session'), payload.get('date')))
             else:
                 self.json({'error': 'Not found'}, 404)
         except Conflict as exc:

@@ -30,7 +30,9 @@
 </form>
 <div class="field"><label for="catchSession">Saved session logs</label><select id="catchSession" disabled><option>No logs yet</option></select></div>
 <p id="catchDuration" class="small">Create a session log above to begin.</p>
+<div class="catch-actions"><button id="deleteCatchSession" type="button" disabled>Delete session</button></div>
 <form id="catchForm">
+<h3>Add a catch</h3>
 <div class="group">
 <div class="field"><label for="fishName">Fish</label><input id="fishName" list="fishNames" maxlength="120" placeholder="Bristle Whisker Catfish" required disabled><datalist id="fishNames"></datalist></div>
 <div class="field"><label for="catchAmount">Amount to add</label><input id="catchAmount" type="number" min="1" max="9007199254740991" step="1" value="1" required disabled></div>
@@ -40,7 +42,7 @@
 </form>
 <p id="catchMessage" role="status"></p>
 <div id="catchError" class="error" role="alert"></div>
-<table class="catch-table catch-entry-table"><caption id="catchTotal">No catches logged</caption><thead><tr><th scope="col">Fish</th><th scope="col">Amount</th><th scope="col">Stacks</th></tr></thead><tbody id="catchRows"></tbody></table>
+<table class="catch-table catch-entry-table"><caption id="catchTotal">No catches logged</caption><thead><tr><th scope="col">Fish</th><th scope="col">Amount</th><th scope="col">Stacks</th><th scope="col">Actions</th></tr></thead><tbody id="catchRows"></tbody></table>
 </div>
 <div id="catchRatesPanel" role="tabpanel" aria-labelledby="catchRatesTab" hidden>
 <div class="row"><h2>All recorded sessions</h2><span id="rateSessions" class="small">0 sessions</span></div>

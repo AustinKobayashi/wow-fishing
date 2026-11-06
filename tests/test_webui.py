@@ -178,6 +178,125 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.controller.catch_log(), before)
         self.assertEqual(self.controller.catches_path.read_bytes(), disk)
 
+    def test_edit_fish_row_preserves_session_details_other_rows_and_persists_rates(self):
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 25)
+        self.controller.add_catch(0, 'Smallfish', 10)
+        self.controller.create_catch_log(3600, 'Goldshire')
+        self.controller.add_catch(1, 'Catfish', 35)
+        original = self.controller.catch_log()['sessions']
+        status, data = self.request('/api/catches/edit', {
+            'session': 0, 'date': original[0]['date'], 'index': 0, 'original': original[0]['catches'][0],
+            'fish': ' Rare fish ', 'amount': 3, 'stacks': False,
+            'sessionLength': 7200, 'location': 'Must not change'})
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0], dict(original[0], catches=[
+            {'fish': 'Rare fish', 'amount': 3, 'stacks': False}, original[0]['catches'][1]]))
+        self.assertEqual(data['sessions'][1], original[1])
+        self.assertEqual(data['rates']['perHour'], 24)
+        self.assertEqual(data['rates']['stacksPerHour'], 3)
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log(), data)
+
+    def test_edit_fish_row_merges_matching_names_and_flags_without_double_counting(self):
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 25)
+        self.controller.add_catch(0, 'Rare fish', 3, False)
+        session = self.controller.catch_log()['sessions'][0]
+        identity = dict(session=0, date=session['date'], index=1, original=session['catches'][1])
+        status, data = self.request('/api/catches/edit', dict(identity, fish=' catFISH ', amount=5, stacks=True))
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0]['catches'], [dict(fish='Catfish', amount=30, stacks=True)])
+        self.assertEqual(data['rates']['perHour'], 30)
+        self.assertEqual(data['rates']['stacksPerHour'], 2)
+        # Legacy rows still edit without needing a stacks flag in their saved representation.
+        self.controller.write_catches([dict(session, catches=[dict(fish='Catfish', amount=25)])])
+        status, data = self.request('/api/catches/edit', dict(session=0, date=session['date'], index=0,
+            original=dict(fish='Catfish', amount=25), fish='Catfish', amount=7, stacks=False))
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0]['catches'], [dict(fish='Catfish', amount=7, stacks=False)])
+        self.assertEqual(data['rates']['stacksPerHour'], 7)
+
+    def test_remove_fish_row_preserves_session_and_rejects_stale_rows(self):
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 25)
+        self.controller.add_catch(0, 'Smallfish', 10)
+        session = self.controller.catch_log()['sessions'][0]
+        identity = dict(session=0, date=session['date'], index=0, original=session['catches'][0])
+        self.controller.add_catch(0, 'Catfish', 1)
+        edit = dict(identity, fish='Catfish', amount=1, stacks=True)
+        self.assertEqual(self.request('/api/catches/edit', edit)[0], 409)
+        self.assertEqual(self.request('/api/catches/remove', identity)[0], 409)
+        identity['original'] = self.controller.catch_log()['sessions'][0]['catches'][0]
+        status, data = self.request('/api/catches/remove', identity)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0], dict(session, catches=[session['catches'][1]]))
+        self.assertEqual(data['rates']['perHour'], 10)
+        self.assertEqual(data['rates']['stacksPerHour'], 1)
+        self.assertEqual(self.request('/api/catches/remove', identity)[0], 409)
+        identity['original'] = session['catches'][1]
+        status, data = self.request('/api/catches/remove', identity)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0], dict(session, catches=[]))
+        self.assertEqual(data['rates']['perHour'], 0)
+        self.assertEqual(Controller(self.controller.config_path, log_sink=lambda _: None).catch_log(), data)
+
+    def test_delete_session_persists_recalculates_and_rejects_stale_selection(self):
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 25)
+        self.controller.create_catch_log(3600, 'Goldshire')
+        self.controller.add_catch(1, 'Catfish', 35)
+        original = self.controller.catch_log()['sessions']
+        identity = dict(session=0, date=original[0]['date'], index=0, original=original[0]['catches'][0])
+        status, data = self.request('/api/catches/delete', identity)
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'], [original[1]])
+        self.assertEqual(data['rates']['perHour'], 35)
+        self.assertEqual(data['rates']['stacksPerHour'], 2)
+        for path in ('/api/catches/delete', '/api/catches/edit', '/api/catches/remove', '/api/catches'):
+            self.assertEqual(self.request(path, dict(identity, fish='Wrong', amount=1))[0], 409)
+        self.assertEqual(self.controller.catch_log(), data)
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log(), data)
+        status, data = self.request('/api/catches/delete', {'session': 0, 'date': original[1]['date']})
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'], [])
+        self.assertEqual(data['rates']['amount'], 0)
+        self.assertIsNone(data['rates']['perHour'])
+        self.assertEqual(json.loads(self.controller.catches_path.read_text()), [])
+
+    def test_edit_remove_delete_validation_request_protection_and_write_failure(self):
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 25)
+        self.controller.add_catch(0, 'Smallfish', 9007199254740991)
+        before = self.controller.catch_log()
+        disk = self.controller.catches_path.read_bytes()
+        identity = dict(session=0, date=before['sessions'][0]['date'], index=0,
+                        original=before['sessions'][0]['catches'][0])
+        edit = dict(identity, fish='Catfish', amount=1, stacks=True)
+        for field, invalid in {'session': [-1, True, 1, None], 'date': [None, 1],
+                               'index': [-1, True, 2, None], 'original': [None, []],
+                               'fish': ['', None], 'amount': [-1, 0, True, 1.5, 9007199254740992],
+                               'stacks': [None, 'yes', 1]}.items():
+            for value in invalid:
+                with self.subTest(field=field, value=value):
+                    self.assertEqual(self.request('/api/catches/edit', dict(edit, **{field: value}))[0], 400)
+        self.assertEqual(self.request('/api/catches/edit', dict(edit, fish='Smallfish'))[0], 400)
+        # The removed session-wide editor cannot overwrite location or duration.
+        self.assertEqual(self.request('/api/catches/edit', dict(session=0, date=identity['date'],
+            location='Wrong', sessionLength=1, catches=[]))[0], 400)
+        for payload in (dict(identity, date=None), dict(identity, session=True), dict(identity, session=9)):
+            self.assertEqual(self.request('/api/catches/delete', payload)[0], 400)
+            self.assertEqual(self.request('/api/catches/remove', payload)[0], 400)
+        for path, payload in [('/api/catches/edit', edit), ('/api/catches/remove', identity),
+                              ('/api/catches/delete', identity)]:
+            for headers in ({'X-Control-Token': ''}, {'Origin': 'https://untrusted.example'}):
+                self.assertEqual(self.request(path, payload, headers)[0], 403)
+            with patch.object(Path, 'replace', side_effect=OSError('Disk unavailable')):
+                self.assertEqual(self.request(path, payload)[0], 500)
+        self.assertEqual(self.controller.catch_log(), before)
+        self.assertEqual(self.controller.catches_path.read_bytes(), disk)
+
     def test_catch_rates_use_all_session_time_not_average_session_rates(self):
         for duration in (3600, 7200, 3600):
             self.controller.create_catch_log(duration, 'Stormwind')

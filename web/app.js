@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id)
 let schema, defaults, cfg, saved, token, currentState
 let mode = 'reel', dirty = false, connected = false, busy = false, previewValid = false
 let previewVersion = 0, previewTimer, hiddenThrough = 0, entries = []
-let catchData, catchBusy = false
+let catchData, catchBusy = false, catchEditRow = null
 const helps = {
  timing:'Minimum is enforced. Spread reference is not a ceiling. Cast mean follows each reel sample.',
  detection:'The loop also sleeps 0.01 s and reads 1024 frames. Check interval alone does not set detection latency. The audio device must support your sample rate and channel count.',
@@ -33,22 +33,47 @@ function controls() {
  $('reset').disabled = !connected || busy || active
  document.querySelectorAll('#fields input').forEach(el => el.disabled = !connected || busy || active)
  $('configState').textContent = dirty ? 'Unsaved changes' : 'Saved settings'
- const catchDisabled = !connected || catchBusy || !catchData?.sessions.length
- for (const id of ['catchSession', 'fishName', 'catchAmount', 'catchStacks', 'addCatch', 'exportCatches']) $(id).disabled = catchDisabled
- for (const id of ['catchLocation', 'sessionLength', 'createCatchLog']) $(id).disabled = !connected || catchBusy
+ const catchDisabled = !connected || catchBusy || !!catchEditRow || !catchData?.sessions.length
+ for (const id of ['catchSession', 'fishName', 'catchAmount', 'catchStacks', 'addCatch', 'exportCatches', 'deleteCatchSession']) $(id).disabled = catchDisabled
+ for (const id of ['catchLocation', 'sessionLength', 'createCatchLog']) $(id).disabled = !connected || catchBusy || !!catchEditRow
+ document.querySelectorAll('.catch-row-actions button').forEach(button => button.disabled = catchDisabled)
+ document.querySelectorAll('.catch-row-editor fieldset').forEach(fieldset => fieldset.disabled = !connected || catchBusy)
 }
 function drawCatches() {
  const session = catchData?.sessions[Number($('catchSession').value)]
  $('catchRows').replaceChildren()
  let total = 0
- for (const catchEntry of session?.catches || []) {
+ for (const [index, catchEntry] of (session?.catches || []).entries()) {
+  total += catchEntry.amount
+  if (catchEditRow?.index === index) {
+   $('catchRows').append(catchRowEditor(catchEntry))
+   continue
+  }
   const row = document.createElement('tr'), fish = document.createElement('td'), amount = document.createElement('td')
   fish.textContent = catchEntry.fish
   amount.textContent = catchEntry.amount.toLocaleString()
   const stacks = document.createElement('td')
   stacks.textContent = catchEntry.stacks === false ? 'No' : 'Yes'
-  total += catchEntry.amount
-  row.append(fish, amount, stacks)
+  const actions = document.createElement('td'), edit = document.createElement('button'), remove = document.createElement('button')
+  actions.className = 'catch-row-actions'
+  edit.type = remove.type = 'button'
+  edit.textContent = 'Edit'
+  remove.textContent = 'Remove'
+  edit.setAttribute('aria-label', `Edit ${catchEntry.fish}`)
+  remove.setAttribute('aria-label', `Remove ${catchEntry.fish}`)
+  edit.onclick = () => {
+   catchEditRow = {session:Number($('catchSession').value), date:session.date, index, original:catchEntry}
+   $('catchError').textContent = $('catchMessage').textContent = ''
+   drawCatches()
+   $('catchRows').querySelector('input').focus()
+  }
+  remove.onclick = () => {
+   if (confirm(`Remove ${catchEntry.amount} ${catchEntry.fish} from this session?`)) {
+    changeCatchRow('/api/catches/remove', {session:Number($('catchSession').value), date:session.date, index, original:catchEntry}, 'Fish row removed.')
+   }
+  }
+  actions.append(edit, remove)
+  row.append(fish, amount, stacks, actions)
   $('catchRows').append(row)
  }
  $('catchTotal').textContent = total.toLocaleString() + ' fish logged'
@@ -107,10 +132,10 @@ function drawCatchRates() {
  $('rateWarning').textContent = !sessions.length ? 'Create a session log to see your catch rates.' : !rates.seconds ? 'An hourly rate needs recorded fishing time.' : sessions.some(session => !session.sessionLength && session.catches.length) ? 'Some catches have a session duration of 0 seconds. Rates may be overstated.' : ''
 }
 async function refreshCatches() {
- if (catchBusy) return
+ if (catchBusy || catchEditRow) return
  try {
   const data = await api('/api/catches')
-  if (!catchBusy) {
+  if (!catchBusy && !catchEditRow) {
    applyCatches(data)
    $('catchLoadError').textContent = ''
   }
@@ -333,6 +358,107 @@ $('stop').onclick = () => action('/api/stop',{})
 $('catchNav').onclick = () => { $('catchLog').open = true }
 $('catchLog').ontoggle = () => { if ($('catchLog').open && connected) refreshCatches() }
 $('catchSession').onchange = drawCatches
+function catchRowEditor(entry) {
+ const row = document.createElement('tr'), cell = document.createElement('td'), form = document.createElement('form')
+ cell.colSpan = 4
+ cell.className = 'catch-row-editor'
+ const fields = document.createElement('fieldset'), legend = document.createElement('legend'), help = document.createElement('p')
+ legend.textContent = `Editing ${entry.fish}`
+ help.className = 'small'
+ help.textContent = "Amount is the corrected total for this row. Matching fish and Stacks rows are combined."
+ const group = document.createElement('div')
+ group.className = 'group'
+ for (const [name, title, type, value] of [['fish', 'Fish', 'text', entry.fish], ['amount', 'Amount', 'number', entry.amount]]) {
+  const label = document.createElement('label'), input = document.createElement('input')
+  label.className = 'field'
+  label.append(title)
+  input.name = name
+  input.type = type
+  input.value = value
+  input.required = true
+  if (name === 'fish') {
+   input.maxLength = 120
+   input.setAttribute('list', 'fishNames')
+  } else {
+   input.min = '1'
+   input.max = '9007199254740991'
+   input.step = '1'
+  }
+  label.append(input)
+  group.append(label)
+ }
+ const label = document.createElement('label'), stacks = document.createElement('input')
+ label.className = 'catch-stacks'
+ stacks.name = 'stacks'
+ stacks.type = 'checkbox'
+ stacks.checked = entry.stacks !== false
+ label.append(stacks, ' Stacks (20 per stack)')
+ const actions = document.createElement('div'), save = document.createElement('button'), cancel = document.createElement('button')
+ actions.className = 'catch-actions'
+ save.className = 'primary'
+ save.textContent = 'Save row'
+ cancel.type = 'button'
+ cancel.textContent = 'Cancel'
+ cancel.onclick = () => {
+  catchEditRow = null
+  drawCatches()
+  $('catchRows').querySelector('button')?.focus()
+  refreshCatches()
+ }
+ actions.append(save, cancel)
+ const error = document.createElement('div')
+ error.className = 'error'
+ error.setAttribute('role', 'alert')
+ fields.append(legend, help, group, label, actions, error)
+ form.append(fields)
+ form.onsubmit = async e => {
+  e.preventDefault()
+  if (catchBusy) return
+  error.textContent = ''
+  await changeCatchRow('/api/catches/edit', {...catchEditRow,
+   fish:form.elements.fish.value, amount:Number(form.elements.amount.value), stacks:form.elements.stacks.checked},
+   'Fish row saved. Catch rates updated.', error)
+ }
+ cell.append(form)
+ row.append(cell)
+ return row
+}
+async function changeCatchRow(path, payload, message, errorElement = $('catchError')) {
+ if (catchBusy) return
+ catchBusy = true
+ controls()
+ errorElement.textContent = $('catchMessage').textContent = ''
+ try {
+  const data = await api(path, payload)
+  catchEditRow = null
+  applyCatches(data)
+  // A save with unchanged values must close the editor too.
+  drawCatches()
+  $('catchMessage').textContent = message
+ } catch (error) { errorElement.textContent = error.message }
+ finally {
+  catchBusy = false
+  controls()
+  if (!catchEditRow) ($('catchRows').querySelector('button') || $('catchSession')).focus()
+ }
+}
+$('deleteCatchSession').onclick = async () => {
+ if (catchBusy || catchEditRow) return
+ const session = Number($('catchSession').value), entry = catchData.sessions[session]
+ if (!confirm(`Delete the session at ${entry.location} created ${new Date(entry.date).toLocaleString()} and all its catches? This cannot be undone.`)) return
+ catchBusy = true
+ controls()
+ $('catchError').textContent = $('catchMessage').textContent = ''
+ try {
+  applyCatches(await api('/api/catches/delete', {session, date:entry.date}))
+  $('catchMessage').textContent = 'Session deleted. Catch rates updated.'
+ } catch (error) { $('catchError').textContent = error.message }
+ finally {
+  catchBusy = false
+  controls()
+  $(catchData.sessions.length ? 'catchSession' : 'catchLocation').focus()
+ }
+}
 $('stackRateStat').onmouseenter = () => { $('stackBreakdown').hidden = false }
 $('stackRateStat').onmouseleave = () => { if (document.activeElement !== $('stackRate')) $('stackBreakdown').hidden = true }
 $('stackRate').onfocus = $('stackRate').onclick = () => { $('stackBreakdown').hidden = false }
@@ -383,7 +509,8 @@ $('catchForm').onsubmit = async e => {
  $('catchError').textContent = ''
  $('catchMessage').textContent = ''
  try {
-  applyCatches(await api('/api/catches', {session, fish, amount, stacks:$('catchStacks').checked}))
+  applyCatches(await api('/api/catches', {session, date:catchData.sessions[session].date, fish, amount, stacks:$('catchStacks').checked}))
+  $('catchForm').reset()
   $('catchMessage').textContent = `Added ${amount} ${fish.trim()} to session ${session + 1}.`
  } catch (error) { $('catchError').textContent = error.message }
  finally {
