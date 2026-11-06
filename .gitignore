@@ -183,3 +183,7 @@ stats*.txt
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local web UI settings
+config.json
+config.json.tmp

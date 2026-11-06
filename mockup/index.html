@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Angler's Rest | WoW Fishing</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1218;--panel:#151c24;--line:#29333e;--muted:#9baab9;--text:#e7eef5;--mint:#87e2bf;--gold:#f1bb70}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif}button,input,select{font:inherit}button{cursor:pointer;border:1px solid var(--line);border-radius:7px;padding:9px 15px;background:#202b36;color:var(--text)}button:hover{border-color:var(--mint)}button:disabled{opacity:.4;cursor:default}button.primary{background:var(--mint);color:#10251e;font-weight:700;border-color:var(--mint)}button.danger{color:#ffadad}a{color:inherit;text-decoration:none}.shell{display:grid;grid-template-columns:212px 1fr;min-height:100vh}aside{border-right:1px solid var(--line);padding:30px 20px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}.brand{font-size:21px;font-weight:700;letter-spacing:-.6px}.brand b{color:var(--mint);margin-right:8px}.eyebrow{font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}.brand-sub{margin:5px 0 48px 26px}nav a{display:block;margin:7px 0;padding:11px 14px;color:var(--muted);border-radius:7px}nav a:first-child{background:#21352f;color:var(--mint)}.host{margin-top:auto;padding:16px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold);margin-right:7px}main{max-width:1450px;width:100%;padding:32px 38px 50px;margin:auto}header,.row{display:flex;align-items:center;justify-content:space-between;gap:16px}h1{font-size:29px;letter-spacing:-1px;font-weight:600;margin:3px 0}h2{font-size:16px;margin:0;font-weight:600}p{margin:6px 0;color:var(--muted)}.badge{font-size:11px;border:1px solid var(--line);border-radius:5px;padding:4px 8px;color:var(--muted)}.notice{margin:22px 0;background:#18242a;border:1px solid #2c4149;border-radius:8px;padding:11px 15px;color:#b4cbd4;font-size:12px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}.card{padding:17px 20px}.card .value{font-size:25px;margin-top:6px;letter-spacing:-.7px}.small{font-size:12px;color:var(--muted)}.layout{display:grid;grid-template-columns:minmax(320px,.9fr) minmax(480px,1.5fr);gap:20px;align-items:start}.panel-head{padding:19px 22px;border-bottom:1px solid var(--line)}.panel-body{padding:20px 22px}.tabs{display:flex;gap:5px;margin-top:16px}.tabs button{flex:1;padding:7px;font-size:12px;background:transparent}.tabs button.active{background:#293b38;color:var(--mint);border-color:#43695a}.group{display:grid;grid-template-columns:1fr 1fr;gap:15px 14px}.field label{display:block;font-size:12px;margin-bottom:6px}.field code{display:block;color:#7c8d9e;font:9px/1.4 ui-monospace,monospace;margin-top:5px;overflow-wrap:anywhere}input,select{color:var(--text);background:#0e151c;border:1px solid #35414e;border-radius:6px;width:100%;padding:9px 10px;outline:none}input:focus{border-color:var(--mint)}.field small{display:block;font-size:10px;color:var(--muted);margin-top:4px}.config-foot{border-top:1px solid var(--line);padding:15px 22px}.config-foot button{width:100%}.help{font-size:12px;background:#10171e;border-radius:6px;padding:12px;margin-top:18px;color:var(--muted)}.stack{display:grid;gap:20px}.legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin:12px 0 0}.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}.graph{width:100%;height:auto;display:block;margin-top:9px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-top:17px;border-top:1px solid var(--line)}.metric strong{display:block;font-size:23px;font-weight:500;color:var(--mint)}.metric:last-child strong{color:var(--gold)}.scenario{margin-top:20px;display:grid;grid-template-columns:1fr 120px;gap:14px;align-items:center}.explain{margin-top:12px;color:var(--muted);font-size:11px}.log-tools{display:flex;gap:8px}.log-tools input{width:160px;padding:5px 8px;font-size:12px}.log-tools button{padding:5px 9px;font-size:12px}.logs{height:176px;overflow:auto;background:#10161d;padding:16px 20px;font:11px/1.9 ui-monospace,monospace}.log-line{display:flex;gap:15px}.log-line time{color:#6d8194}.log-line span{color:#aec2d1}.log-line b{font-weight:400;color:var(--mint)}.bottom-note{padding:9px 20px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}details{margin-top:18px;font-size:12px;color:var(--muted)}summary{cursor:pointer;color:var(--text)}.error{color:#ffaaaa;margin-top:10px;font-size:12px}.hidden{display:none!important}footer{display:flex;justify-content:space-between;margin-top:22px;font-size:11px;color:#77899a}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--mint);outline-offset:3px}@media(max-width:1100px){aside{display:none}.shell{display:block}main{padding:22px}.layout{grid-template-columns:1fr}.cards{gap:8px}}@media(max-width:620px){main{padding:16px}.cards{grid-template-columns:1fr 1fr}header{align-items:start;flex-direction:column}.metrics{grid-template-columns:1fr}.log-tools input{width:90px}.panel-head,.panel-body{padding:16px}.row{flex-wrap:wrap}.group{gap:12px}}
+</style>
+<link rel="stylesheet" href="warcraft.css">
+</head>
+<body><div class="shell"><aside><img class="wow-logo" src="assets/wow-classic.png" alt="World of Warcraft Classic"><div class="brand">The Angler's Rest</div><div class="eyebrow brand-sub">A personal fishing companion</div><div class="nav-caption">YOUR CAMP</div><nav><a href="#overview"><img src="assets/fishing.jpg" alt=""> Fishing camp</a><a href="#configuration"><img src="assets/gear.jpg" alt=""> Tackle &amp; settings</a><a href="#distribution"><img src="assets/lure.jpg" alt=""> Timing &amp; chances</a><a href="#activity"><img src="assets/journal.jpg" alt=""> Fishing journal</a></nav><div class="camp-flavor"><div class="flavor-rule">✦</div><p>Good things come to<br>those who bait.</p><span>ONE MORE CAST.</span></div><div class="host"><span class="dot"></span>Local prototype<p>No device connected</p><span class="badge">WOW FISHING</span></div></aside>
+<main id="overview"><header class="fishing-hero"><div class="hero-copy"><div class="eyebrow">WORLD OF WARCRAFT / FISHING CAMP</div><h1>The Angler's Rest</h1><p>A quiet shore. A patient cast. A bag full of fish.</p><div class="hero-rule"><span>✦</span></div><div class="hero-actions"><button id="start" class="primary"><img src="assets/fishing.jpg" alt=""> Cast a line <span>START DEMO</span></button><button id="stop" class="danger" disabled>Stop fishing</button></div><div class="hero-caption">Your favorite fishing spot, with a few extra knobs.</div></div><div class="location-tag"><span>✦</span> Somewhere in Azeroth <small>Just you and the water.</small></div></header>
+<div class="notice"><span class="notice-gem">◆</span> DEMO CAMP &nbsp; Start, stop, and logs are simulated. Settings stay in this preview.</div>
+<div class="cards"><div class="card"><div class="eyebrow">Bot status</div><div class="value" id="status">Ready</div><div class="small">Demo session</div></div><div class="card"><div class="eyebrow">Session time</div><div class="value" id="elapsed">00:00:00</div><div class="small" id="runlimit">5 hour run limit</div></div><div class="card"><div class="eyebrow">Detection threshold</div><div class="value" id="threshold">7,000</div><div class="small">Mean absolute audio amplitude</div></div><div class="card"><div class="eyebrow">Reel cutoff</div><div class="value" id="cutoffCard">2.100 <span class="small">s</span></div><div class="small">Skip at or above this delay</div></div></div>
+<div class="layout"><section class="panel" id="configuration"><div class="panel-head"><div class="row"><h2><img class="title-icon" src="assets/gear.jpg" alt=""> Tackle &amp; settings</h2><span class="badge" id="configState">Source defaults</span></div><div class="tabs" id="configTabs"><button class="active" data-tab="timing">Timing</button><button data-tab="detection">Detection</button><button data-tab="session">Session</button><button data-tab="servo">Servo</button></div></div><div class="panel-body"><div id="fields"></div><div class="error" id="error" role="alert"></div><div class="help" id="configHelp"></div><details><summary>Static and inactive parameters</summary><p>Fixed hardware: SERVO_PIN = 27. Audio FORMAT = paInt16. Buffer = 1024 frames.</p><p>Logging: LOG_FOLDER = logs, LOG_FILE = {}-log.txt. Stats output = stats.txt.</p><p>REEL_TIME_UNDER_MIN_MODIFIER = 10 and CAST_TIME_UNDER_MIN_MODIFIER = 0.3 are passed to the helper but unused. CAST_TIME_MEAN_MAX_MODIFIER = 0.6 is overridden by reel time in the main loop.</p><p>PLOTS_FOLDER = plots is inactive. Standalone plotting and test-script settings are outside the bot's runtime configuration.</p></details></div><div class="config-foot"><button id="reset">Reset to source defaults</button><p class="small">Edits update the preview immediately. Demo locks settings while running.</p></div></section>
+<div class="stack"><section class="panel" id="distribution"><div class="panel-head"><div class="row"><h2><img class="title-icon" src="assets/fishing.jpg" alt=""> Timing &amp; chances</h2><span class="badge">Calculated from current code</span></div><div class="tabs" id="graphTabs"><button class="active" data-mode="reel">Reel delay</button><button data-mode="cast">Cast delay · conditional</button></div></div><div class="panel-body"><div class="row"><div><h2 id="chartTitle">Most reactions. A few deliberate skips.</h2><p class="small" id="chartSub"></p></div></div><div class="legend"><span><i style="background:var(--mint)"></i>Accepted delay density</span><span id="cutoffLegend"><i style="background:var(--gold)"></i>Skipped by cutoff</span></div><svg class="graph" id="chart" viewBox="0 0 680 250" role="img" aria-label="Probability density of accepted reel delays with shaded cutoff tail"></svg><div class="metrics" id="metrics"></div><div class="scenario"><div><label id="scenarioLabel" for="scenarioInput">Detection age after last cast</label><p class="small" id="scenarioHelp">Scenario only. Used to estimate the fishing-window effect.</p></div><input id="scenarioInput" type="number" min="0" max="60" step="0.1" value="10" aria-label="Scenario seconds"></div><div class="help" id="scenarioResult"></div><details><summary>How these numbers are calculated</summary><p>The helper samples N(μ, σ²), rejecting every value below the minimum. μ = (min + max × modifier) / 2 and σ = (max - min) / (2 × Φ⁻¹(1 - tail / 2)). Max sets the spread, not an upper bound. The tail input is not the missed-event probability.</p><p>Cutoff skip probability is Q((cutoff - μ) / σ) / Q((min - μ) / σ), or 100% when cutoff ≤ min. Expected skips per 1,000 refer to detected events that enter the timing branch, not all casts or failed catches.</p><p>The current main loop sleeps for R, then checks elapsed + R &lt; WOW_FISHING_TIME. With detection age A and negligible overhead, it requires A + 2R &lt; window, so the combined threshold is min(cutoff, (window - A) / 2). Actual scheduling overhead can increase skips.</p><p>Cast delay is conditional on the previous reel sample, which becomes its mean. This preview is a single conditional distribution, not the overall cast distribution. Plotted tails extend beyond the viewport. Probability calculations include the full tail.</p></details></div></section>
+<section class="panel" id="activity"><div class="panel-head row"><h2><img class="title-icon" src="assets/journal.jpg" alt=""> Fishing journal <span class="badge">DEMO</span></h2><div class="log-tools"><input id="filter" placeholder="Filter logs..." aria-label="Filter logs"><button id="clear">Clear</button><button id="download">Export</button></div></div><div class="logs" id="logs" role="log" aria-label="Simulated bot logs"></div><div class="bottom-note">Simulated events only · Latest 200 entries · Auto-scroll</div></section></div></div><footer><span>THE ANGLER'S REST / PERSONAL FISHING CAMP</span><span>Source: main.py + normal_distribution.py + servo.py</span></footer><div class="asset-credit">World of Warcraft artwork &amp; icons: Blizzard Entertainment. Fishing screenshot via <a href="https://www.wowhead.com/item=111670/enormous-blackwater-whiptail" target="_blank" rel="noreferrer">Wowhead</a>. <a href="assets/sources.json">Asset sources</a></div></main></div>
+<script>
+const defs = {
+ timing: [['REEL_TIME_MIN','Reel minimum','s',.985,.001,20,.001],['REEL_TIME_MAX','Reel spread reference','s',4,.002,60,.001],['REEL_TIME_TAIL_PROBABILITY','Reel tail parameter','probability',.0005,1e-10,.9,'any'],['REEL_TIME_MEAN_MAX_MODIFIER','Reel mean modifier','ratio',.4,0,2,.01],['DONT_REEL_TIME','Hard reel cutoff','s',2.1,0,60,.01],['CAST_TIME_MIN','Cast minimum','s',.985,.001,20,.001],['CAST_TIME_MAX','Cast spread reference','s',3,.002,60,.001],['CAST_TIME_TAIL_PROBABILITY','Cast tail parameter','probability',.0000005,1e-10,.9,'any'],['WOW_FISHING_TIME','Fishing window','s',28,1,120,.1],['REEL_TIME_DELAY_AFTER_CAST','Ignore audio after cast','s',1.5,0,60,.1]],
+ detection: [['THRESHOLD','Audio threshold','amplitude',7000,0,32768,1],['CHECK_INTERVAL','Check interval','s',.01,.001,5,.001],['RATE','Sample rate','Hz',48000,8000,192000,1],['CHANNELS','Audio channels','channels',1,1,2,1]],
+ session: [['MAX_RUN_TIME','Maximum runtime','s',18000,1,86400,1],['LAST_CAST_MAX','Recast timeout','s',60,1,600,1],['IDLE_TIME_MIN','Idle minimum','s',10,0,3600,1],['IDLE_TIME_MAX','Idle maximum','s',120,0,3600,1],['IDLE_PROBABILITY','Idle probability per event','probability',.0013,0,1,'any']],
+ servo: [['SERVO_CLICK','Press pulse width','µs',945,500,2500,1],['SERVO_SPEED','Press / release hold','s',.1,.01,2,.01]]
+}
+const defaults=Object.fromEntries(Object.values(defs).flat().map(d=>[d[0],d[3]]))
+let cfg={...defaults}, mode='reel', running=false, timer=null, seconds=0, entries=[]
+const $=id=>document.getElementById(id)
+const helps={timing:'Minimum is enforced by resampling. Spread reference is not a ceiling. Cast mean follows each reel sample.',detection:'The loop also sleeps 0.01 s and reads 1024 frames. Check interval alone does not set detection latency. Device support must be checked by a future backend.',session:'Idle duration is uniform between the bounds. Probability is evaluated once per detected event, after the reel decision.',servo:'servo.py holds the press and release for this duration each. At the default, a button action takes about 0.20 s. GPIO pin 27 stays fixed. Hardware calibration is required.'}
+Object.entries(defs).forEach(([tab,items])=>{
+ const group=document.createElement('div')
+ group.className='group'+(tab==='timing'?'':' hidden')
+ group.id='group-'+tab
+ items.forEach(([key,label,unit,value,min,max,step])=>{
+  const field=document.createElement('div')
+  field.className='field'
+  field.innerHTML=`<label for="${key}">${label} <span class="small">(${unit})</span></label><input id="${key}" type="number" value="${value}" min="${min}" max="${max}" step="${step}"><code>${key}</code>`
+  group.append(field)
+ })
+ $('fields').append(group)
+})
+$('configHelp').textContent=helps.timing
+$('configTabs').onclick=e=>{
+ const tab=e.target.dataset.tab
+ if(!tab)return
+ document.querySelectorAll('#configTabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab))
+ Object.keys(defs).forEach(k=>$('group-'+k).classList.toggle('hidden',k!==tab))
+ $('configHelp').textContent=helps[tab]
+}
+// Simpson integration of the standard-normal survival function.
+// Integration uses an even panel count with steps no larger than 0.01.
+function phi(x){return Math.exp(-x*x/2)/Math.sqrt(2*Math.PI)}
+function sf(x){
+ if(x<0)return 1-sf(-x)
+ if(x>=38)return 0
+ const upper=Math.max(12,x+12), n=2*Math.ceil((upper-x)/.02), h=(upper-x)/n
+ let sum=phi(x)+phi(upper)
+ for(let i=1;i<n;i++)sum+=(i%2?4:2)*phi(x+i*h)
+ return sum*h/3
+}
+function isf(p){let lo=-12,hi=12
+ for(let i=0;i<55;i++){const mid=(lo+hi)/2
+ if(sf(mid)>p)lo=mid
+ else hi=mid}
+ return (lo+hi)/2
+}
+function model(prefix,override){
+ const min=cfg[prefix+'_MIN'],max=cfg[prefix+'_MAX']
+ const mu=override??(min+max*cfg[prefix+'_MEAN_MAX_MODIFIER'])/2
+ const sigma=(max-min)/(2*isf(cfg[prefix+'_TAIL_PROBABILITY']/2))
+ const a=(min-mu)/sigma, norm=sf(a)
+ if(norm<1e-9)throw Error('These settings accept fewer than 1 in a billion samples. Increase the mean modifier or spread.')
+ return {min,mu,sigma,norm,mean:mu+sigma*phi(a)/norm,pdf:x=>x<min?0:phi((x-mu)/sigma)/sigma/norm,skip:x=>x<=min?1:Math.min(1,sf((x-mu)/sigma)/norm)}
+}
+const pct=x=>x>0&&x<.0001?'<0.01%':x<1&&x>.9999?'>99.99%':(x*100).toFixed(2)+'%'
+function update(){
+ try{
+  Object.values(defs).flat().forEach(([key])=>{
+   const el=$(key)
+   if(!el.checkValidity()||el.value==='')throw Error('Check '+key+' and its allowed range.')
+   cfg[key]=Number(el.value)
+  })
+  if(cfg.REEL_TIME_MIN>=cfg.REEL_TIME_MAX||cfg.CAST_TIME_MIN>=cfg.CAST_TIME_MAX)throw Error('Each minimum must be less than its spread reference.')
+  if(cfg.IDLE_TIME_MIN>cfg.IDLE_TIME_MAX)throw Error('Idle minimum must not exceed idle maximum.')
+  const input=$('scenarioInput')
+  if(!input.checkValidity()||input.value==='')throw Error('Enter a valid scenario time.')
+  const scenario=Number(input.value),r=model('REEL_TIME')
+  if(mode==='cast'&&scenario<cfg.REEL_TIME_MIN)throw Error('The conditional reel sample must be at least the reel minimum.')
+  const m=mode==='reel'?r:model('CAST_TIME',scenario)
+  render(m,r,scenario)
+  $('error').textContent=''
+  $('chart').style.opacity='1'
+  $('start').disabled=running
+  $('threshold').textContent=cfg.THRESHOLD.toLocaleString()
+  $('runlimit').textContent=(cfg.MAX_RUN_TIME/3600).toFixed(2)+' hour run limit'
+  $('cutoffCard').textContent=cfg.DONT_REEL_TIME.toFixed(3)+' s'
+  return true
+ }catch(e){$('error').textContent=e.message
+  $('start').disabled=true
+  $('chart').innerHTML=''
+  $('metrics').textContent='Preview unavailable for these inputs.'
+  $('scenarioResult').textContent='Correct the configuration to calculate probabilities.'
+  return false}
+}
+function render(m,r,scenario){
+ const reel=mode==='reel',cut=cfg.DONT_REEL_TIME
+ const xmax=Math.max(m.min+.5,m.mu+4*m.sigma,reel?Math.min(cut,m.mu+7*m.sigma):0)
+ const xmin=Math.max(0,m.min-.2), ymax=m.pdf(Math.max(m.min,m.mu))*1.15
+ const X=x=>52+(x-xmin)/(xmax-xmin)*600,Y=y=>207-y/ymax*170
+ const points=Array.from({length:321},(_,i)=>{const x=m.min+(xmax-m.min)*i/320
+ return [x,m.pdf(x)]})
+ const path=pts=>pts.map(([x,y])=>`${X(x).toFixed(2)},${Y(y).toFixed(2)}`).join(' ')
+ let svg=''
+ for(let i=0;i<5;i++){const y=ymax*i/4
+ svg+=`<line x1="52" y1="${Y(y)}" x2="652" y2="${Y(y)}" stroke="#29333e"/><text x="43" y="${Y(y)+4}" text-anchor="end" fill="#8697a8" font-size="10">${y.toFixed(1)}</text>`}
+ for(let i=0;i<=6;i++){const x=xmin+(xmax-xmin)*i/6
+ svg+=`<text x="${X(x)}" y="227" text-anchor="middle" fill="#8697a8" font-size="10">${x.toFixed(2)}</text>`}
+ svg+='<text x="52" y="16" fill="#8697a8" font-size="10">Density (1/s)</text><text x="652" y="246" text-anchor="end" fill="#8697a8" font-size="10">Delay (seconds) →</text>'
+ svg+=`<polygon points="${X(m.min)},207 ${path(points)} ${X(xmax)},207" fill="#87e2bf" fill-opacity=".12"/><polyline points="${path(points)}" fill="none" stroke="#87e2bf" stroke-width="2.5"/>`
+ if(reel&&cut<xmax){const start=Math.max(cut,m.min), tail=[[start,m.pdf(start)],...points.filter(p=>p[0]>start)]
+ svg+=`<polygon points="${X(start)},207 ${path(tail)} ${X(xmax)},207" fill="#f1bb70" fill-opacity=".3"/>`}
+ if(reel&&cut>=xmin&&cut<=xmax)svg+=`<line x1="${X(cut)}" y1="30" x2="${X(cut)}" y2="207" stroke="#f1bb70" stroke-dasharray="4 4"/><text x="${Math.min(570,Math.max(62,X(cut)+8))}" y="28" fill="#f1bb70" font-size="11">Cutoff ${cut.toFixed(2)} s</text>`
+ $('chart').innerHTML=svg
+ $('chart').setAttribute('aria-label',reel?'Accepted reel delay density. Cutoff skip probability '+pct(r.skip(cut)):'Cast delay density conditional on reel sample '+scenario+' seconds')
+ $('chartTitle').textContent=reel?'Most reactions. A few deliberate skips.':'The next cast follows the reel sample.'
+ $('chartSub').textContent=`Lower-truncated normal · underlying μ ${m.mu.toFixed(3)} s · σ ${m.sigma.toFixed(3)} s`
+ $('cutoffLegend').classList.toggle('hidden',!reel)
+ const data=reel?[['Mean accepted delay',m.mean.toFixed(3)+' s'],['Cutoff skips',pct(r.skip(cut))],['Per 1,000 detections','≈ '+(1000*r.skip(cut)).toFixed(1)]]:[['Mean accepted delay',m.mean.toFixed(3)+' s'],['Conditional reel sample',scenario.toFixed(3)+' s'],['Above spread reference',pct(m.skip(cfg.CAST_TIME_MAX))]]
+ $('metrics').innerHTML=data.map(([label,value])=>`<div class="metric"><div class="small">${label}</div><strong>${value}</strong></div>`).join('')
+ const effective=Math.min(cut,(cfg.WOW_FISHING_TIME-scenario)/2)
+ $('scenarioResult').textContent=reel&&scenario<=cfg.REEL_TIME_DELAY_AFTER_CAST?'At this age, the post-cast guard blocks detection. The timing branch would not run.':reel?`At detection age ${scenario.toFixed(1)} s, the code's combined skip estimate is ${pct(r.skip(effective))} (≈ ${(1000*r.skip(effective)).toFixed(1)} per 1,000 detections). Effective delay limit: ${effective.toFixed(3)} s. Assumes negligible processing overhead. This is not a catch-success forecast.`:'This curve uses the supplied reel sample as its mean before minimum rejection. There is no DONT_REEL_TIME cutoff on cast delay. Edit the sample to explore the conditional distribution.'
+}
+$('fields').oninput=()=>{$('configState').textContent='Preview edits'
+ update()}
+$('scenarioInput').oninput=update
+$('graphTabs').onclick=e=>{
+ if(!e.target.dataset.mode)return
+ mode=e.target.dataset.mode
+ document.querySelectorAll('#graphTabs button').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode))
+ $('scenarioLabel').textContent=mode==='reel'?'Detection age after last cast':'Previous reel sample'
+ $('scenarioHelp').textContent=mode==='reel'?'Scenario only. Used to estimate the fishing-window effect.':'Scenario only. This value becomes the cast mean.'
+ $('scenarioInput').value=mode==='reel'?10:Math.max(cfg.REEL_TIME_MIN,1.4)
+ update()
+}
+$('reset').onclick=()=>{cfg={...defaults}
+ Object.entries(cfg).forEach(([k,v])=>$(k).value=v)
+ $('configState').textContent='Source defaults'
+ update()}
+function drawLogs(){const filter=$('filter').value.toLowerCase()
+ $('logs').replaceChildren()
+ entries.filter(e=>e.message.toLowerCase().includes(filter)).forEach(e=>{
+ const row=document.createElement('div'),time=document.createElement('time'),tag=document.createElement('b'),msg=document.createElement('span')
+ row.className='log-line'
+ time.textContent=e.time
+ tag.textContent='DEMO'
+ msg.textContent=e.message
+ row.append(time,tag,msg)
+ $('logs').append(row)
+ })
+ $('logs').scrollTop=$('logs').scrollHeight
+}
+function log(message){entries.push({time:new Date().toLocaleTimeString('en-GB'),message})
+ entries=entries.slice(-200)
+ drawLogs()}
+function setRunning(value){running=value
+ $('start').disabled=value
+ $('stop').disabled=!value
+ $('reset').disabled=value
+ document.querySelectorAll('#fields input').forEach(el=>el.disabled=value)
+ $('status').textContent=value?'Running demo':'Stopped'
+}
+function stop(){clearInterval(timer)
+ setRunning(false)
+ log('Demo stopped. No hardware commands were sent.')}
+$('start').onclick=()=>{if(!update())return
+ seconds=0
+ $('elapsed').textContent='00:00:00'
+ setRunning(true)
+ log('Demo started with the preview configuration.')
+ timer=setInterval(()=>{seconds++
+ $('elapsed').textContent=[Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60].map(x=>String(x).padStart(2,'0')).join(':')
+ if(seconds>=cfg.MAX_RUN_TIME){log('Demo run limit reached.')
+ stop()
+ return}
+ if(seconds%4===0)log(['Illustrative event: listening for audio.','Illustrative event: threshold exceeded.','Illustrative event: reel decision completed.','Illustrative event: casting.'][Math.floor(seconds/4-1)%4])
+ },1000)}
+$('stop').onclick=stop
+$('clear').onclick=()=>{entries=[]
+ drawLogs()}
+$('filter').oninput=drawLogs
+$('download').onclick=()=>{const url=URL.createObjectURL(new Blob([entries.map(e=>e.time+' DEMO '+e.message).join('\n')],{type:'text/plain'})),a=document.createElement('a')
+ a.href=url
+ a.download='anglers-rest-demo.log'
+ a.click()
+ setTimeout(()=>URL.revokeObjectURL(url),1000)}
+update()
+log('Preview ready. Defaults loaded from Python source.')
+log('Timing probabilities include the full unbounded upper tail.')
+log('Start demo to preview session controls and illustrative logs.')
+</script></body></html>

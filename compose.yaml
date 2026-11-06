@@ -1,0 +1,21 @@
+# Run on the Linux Pi. pigpiod stays on the host.
+services:
+  fishing:
+    build: .
+    image: wow-fishing:local
+    restart: unless-stopped
+    network_mode: host
+    command: ["python", "webui.py", "--allow-network", "192.168.1.0/24", "--allow-network", "100.64.0.0/10"]
+    environment:
+      PIGPIO_ADDR: localhost
+      PIGPIO_PORT: "8888"
+    devices:
+      - /dev/snd:/dev/snd
+    group_add:
+      - "${AUDIO_GID:-29}"
+    volumes:
+      - fishing-data:/data
+    stop_grace_period: 30s
+
+volumes:
+  fishing-data:

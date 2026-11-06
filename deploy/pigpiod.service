@@ -1,0 +1,11 @@
+[Unit]
+Description=Local GPIO daemon for the fishing controller
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pigpiod -g -l -f
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

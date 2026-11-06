@@ -1,64 +1,65 @@
-import numpy as np
-import scipy.stats as stats
+"""The lower-truncated timing model used for both sampling and UI predictions."""
 import math
-# import matplotlib.pyplot as plt
+import numpy as np
+from scipy.stats import norm, truncnorm
+
 
 def calculate_z_score(tail_probability):
-    # Calculate the z-score using the CDF of the standard normal distribution
-    if tail_probability >= 1:
-        return float('inf')  # Maximum z-score for the right tail
-    elif tail_probability <= 0:
-        return float('-inf')  # Minimum z-score for the left tail
-    else:
-        # Calculate the z-score using the inverse CDF expression
-        return math.sqrt(2) * math.erfinv(1 - 2 * tail_probability)
-    
-    
-def get_normal_distribution(min_value, max_value, tail_probability, mean_max_modifier, under_min_modifier, mean=None):
-    if min_value >= max_value:
-        raise ValueError('Minimum value must be less than maximum value')
-    
-    # Calculate the desired range
-    range = max_value - min_value
-    
-    # Calculate the z-score corresponding to the tail probability
-    z_score = stats.norm.ppf(1 - tail_probability / 2)
-    
-    # Calculate the standard deviation to achieve the desired range
-    std_deviation = range / (2 * z_score)
-    
-    # Calculate the mean as the midpoint between min and max
-    mean = mean if mean else (min_value + max_value * mean_max_modifier) / 2
-    
-    # Generate a random value from a normal distribution
-    random_value = np.random.normal(mean, std_deviation)
-    
-    # Ensure the value is within the specified range
-    if random_value < min_value:
-        return get_normal_distribution(min_value, max_value, tail_probability, mean_max_modifier, under_min_modifier, mean)
-    
-    return random_value
+    return float(norm.isf(tail_probability))
 
 
-# scipy_ranges = [stats.norm.ppf(1 - 0.005 / 2) for i in range(10000)]
-# numpy_ranges = [calculate_z_score(0.005) for i in range(10000)]
+def distribution(min_value, max_value, tail_probability, mean_max_modifier, mean=None):
+    if min_value >= max_value or not 0 < tail_probability < 1:
+        raise ValueError('Invalid timing range or tail probability.')
+    sigma = (max_value - min_value) / (2 * norm.isf(tail_probability / 2))
+    mu = mean if mean is not None else (min_value + max_value * mean_max_modifier) / 2
+    return truncnorm((min_value - mu) / sigma, math.inf, loc=mu, scale=sigma)
 
-# print(f'Scipy mean: {np.mean(scipy_ranges)}')
-# print(f'Numpy mean: {np.mean(numpy_ranges)}')
 
-# plt.figure(figsize=(12, 6))
+def get_normal_distribution(min_value, max_value, tail_probability,
+                            mean_max_modifier, under_min_modifier, mean=None):
+    # under_min_modifier remains accepted for existing callers, but was always unused.
+    # Sampling the truncated normal directly avoids recursive rejection overflow.
+    return float(distribution(min_value, max_value, tail_probability,
+                              mean_max_modifier, mean).rvs())
 
-# plt.subplot(1, 2, 1)
-# plt.hist(scipy_ranges, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-# plt.xlabel('Seconds')
-# plt.ylabel('Frequency')
-# plt.title('Scipy Z-Score Distribution')
 
-# plt.subplot(1, 2, 2)
-# plt.hist(numpy_ranges, bins=100, density=True, alpha=0.7, color='blue', edgecolor='black')
-# plt.xlabel('Seconds')
-# plt.ylabel('Frequency')
-# plt.title('Numpy Z-Score Distribution')
+def for_config(config, prefix, mean=None):
+    modifier = config['REEL_TIME_MEAN_MAX_MODIFIER'] if prefix == 'REEL_TIME' else .6
+    return distribution(config[prefix + '_MIN'], config[prefix + '_MAX'],
+                        config[prefix + '_TAIL_PROBABILITY'], modifier, mean)
 
-# plt.tight_layout()
-# plt.show()
+
+def preview(config, mode, scenario):
+    if mode not in ('reel', 'cast'):
+        raise ValueError('Choose reel or cast.')
+    if isinstance(scenario, bool) or not isinstance(scenario, (int, float)):
+        raise ValueError('Scenario must be numeric.')
+    if not math.isfinite(scenario) or not 0 <= scenario <= 600:
+        raise ValueError('Scenario must be between 0 and 600 seconds.')
+    if mode == 'cast' and scenario < config['REEL_TIME_MIN']:
+        raise ValueError('The conditional reel sample must be at least the reel minimum.')
+    reel = for_config(config, 'REEL_TIME')
+    model = reel if mode == 'reel' else for_config(config, 'CAST_TIME', scenario)
+    prefix = 'REEL_TIME' if mode == 'reel' else 'CAST_TIME'
+    minimum = config[prefix + '_MIN']
+    mu, sigma = float(model.kwds['loc']), float(model.kwds['scale'])
+    cutoff = config['DONT_REEL_TIME']
+    # Quantiles keep a useful viewport even for strongly truncated distributions.
+    right = max(minimum + .1, float(model.ppf(.9995)))
+    if mode == 'reel':
+        right = max(right, min(cutoff * 1.1, float(model.ppf(.999999))))
+    xs = np.linspace(minimum, right, 321)
+    if mode == 'reel' and minimum < cutoff < right:
+        xs = np.sort(np.append(xs, cutoff))
+    effective = min(cutoff, (config['WOW_FISHING_TIME'] - scenario) / 2)
+    return dict(mode=mode, scenario=scenario, minimum=minimum, mu=mu, sigma=sigma,
+                mean=float(model.mean()), cutoff=cutoff,
+                xmin=max(0, minimum - (right - minimum) * .08), xmax=right,
+                ymax=float(model.pdf(max(minimum, mu))) * 1.15,
+                points=np.column_stack((xs, model.pdf(xs))).tolist(),
+                cutoff_skip=float(reel.sf(cutoff)), effective_limit=effective,
+                combined_skip=float(reel.sf(effective)),
+                guard_blocks=scenario <= config['REEL_TIME_DELAY_AFTER_CAST'],
+                recast_due=scenario > config['LAST_CAST_MAX'],
+                above_reference=float(model.sf(config[prefix + '_MAX'])))
