@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 from unittest.mock import Mock, patch
+from datetime import datetime
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -119,6 +120,147 @@ class ServerTests(unittest.TestCase):
         with urlopen(self.base + '/app.js') as response:
             self.assertEqual(response.headers.get_content_type(), 'text/javascript')
         self.assertEqual(self.request('/assets/wow-classic.png')[0], 200)
+
+    def test_manual_catch_logs_persist_names_counts_location_and_date(self):
+        self.assertEqual(self.request('/api/catches')[1], {
+            'sessions': [], 'fishNames': [], 'rates': {
+                'seconds': 0, 'amount': 0, 'perHour': None, 'catches': [], 'stacks': 0, 'stacksPerHour': None}})
+        status, data = self.request('/api/catches/new', {'sessionLength': 7200, 'location': ' Stormwind '})
+        self.assertEqual(status, 200)
+        session = data['sessions'][0]
+        self.assertEqual(session['sessionLength'], 7200)
+        self.assertEqual(session['location'], 'Stormwind')
+        self.assertIsNotNone(datetime.fromisoformat(session['date']).tzinfo)
+        self.assertEqual(session['catches'], [])
+        for fish, amount in [('Bristle Whisker Catfish', 3), (' bristle whisker catfish ', 2), ('Raw Longjaw Mud Snapper', 4)]:
+            status, data = self.request('/api/catches', {'session': 0, 'fish': fish, 'amount': amount})
+            self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0]['catches'], [
+            {'fish': 'Bristle Whisker Catfish', 'amount': 5, 'stacks': True},
+            {'fish': 'Raw Longjaw Mud Snapper', 'amount': 4, 'stacks': True}])
+        self.assertEqual(data['sessions'][0]['sessionLength'], 7200)
+        self.assertEqual(data['sessions'][0]['date'], session['date'])
+        self.request('/api/catches/new', {'sessionLength': 900, 'location': 'Goldshire'})
+        status, data = self.request('/api/catches', {'session': 1, 'fish': 'BRISTLE WHISKER CATFISH', 'amount': 1})
+        self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][1]['catches'], [{'fish': 'Bristle Whisker Catfish', 'amount': 1, 'stacks': True}])
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log(), data)
+        self.assertEqual(json.loads(self.controller.catches_path.read_text(encoding='utf-8')), data['sessions'])
+        self.assertFalse(self.controller.active())
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.request('/catches.json')[0], 404)
+
+    def test_catch_validation_and_request_protection(self):
+        for duration in (True, -1, 1.5, '7200', None, 9007199254740992):
+            self.assertEqual(self.request('/api/catches/new', {'sessionLength': duration, 'location': 'Stormwind'})[0], 400)
+        for location in (' ', None, 123, 'x' * 121):
+            self.assertEqual(self.request('/api/catches/new', {'sessionLength': 7200, 'location': location})[0], 400)
+        self.assertEqual(self.request('/api/catches/new', {'sessionLength': 0, 'location': 'Stormwind'})[0], 200)
+        payload = {'session': 0, 'fish': 'Catfish', 'amount': 1}
+        for key, values in {'session': [-1, 1, True, '0', None], 'fish': ['', ' ', None, 1, 'x' * 121],
+                            'amount': [0, -1, True, 1.5, '2', None, 9007199254740992],
+                            'stacks': [0, 1, 'false', None, []]}.items():
+            for value in values:
+                with self.subTest(key=key, value=value):
+                    self.assertEqual(self.request('/api/catches', dict(payload, **{key: value}))[0], 400)
+        for path, body in [('/api/catches', payload), ('/api/catches/new', {'sessionLength': 1, 'location': 'Stormwind'})]:
+            self.assertEqual(self.request(path, body, {'X-Control-Token': ''})[0], 403)
+        self.assertEqual(self.controller.catch_log()['sessions'][0]['catches'], [])
+
+    def test_catch_write_failure_preserves_saved_data(self):
+        self.controller.create_catch_log(7200, 'Stormwind')
+        before = self.controller.catch_log()
+        disk = self.controller.catches_path.read_bytes()
+        with patch.object(Path, 'replace', side_effect=OSError('Disk unavailable')):
+            self.assertEqual(self.request('/api/catches', {'session': 0, 'fish': 'Catfish', 'amount': 1})[0], 500)
+            self.assertEqual(self.request('/api/catches/new', {'sessionLength': 1, 'location': 'Goldshire'})[0], 500)
+        self.assertEqual(self.controller.catch_log(), before)
+        self.assertEqual(self.controller.catches_path.read_bytes(), disk)
+
+    def test_catch_rates_use_all_session_time_not_average_session_rates(self):
+        for duration in (3600, 7200, 3600):
+            self.controller.create_catch_log(duration, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 60)
+        self.controller.add_catch(1, 'Catfish', 20)
+        self.controller.add_catch(1, 'Smallfish', 40)
+        rates = self.request('/api/catches')[1]['rates']
+        self.assertEqual(rates, {'seconds': 14400, 'amount': 120, 'perHour': 30, 'stacks': 6, 'stacksPerHour': 1.5,
+                                'catches': [{'fish': 'Catfish', 'amount': 80, 'perHour': 20, 'stacks': 4, 'nonStackingAmount': 0},
+                                            {'fish': 'Smallfish', 'amount': 40, 'perHour': 10, 'stacks': 2, 'nonStackingAmount': 0}]})
+        self.controller.add_catch(2, 'Smallfish', 40)
+        self.assertEqual(self.request('/api/catches')[1]['rates']['perHour'], 40)
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log()['rates'], self.controller.catch_log()['rates'])
+
+    def test_catch_rates_with_no_catches_or_no_duration(self):
+        self.controller.create_catch_log(0, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 10)
+        rates = self.request('/api/catches')[1]['rates']
+        self.assertIsNone(rates['perHour'])
+        self.assertIsNone(rates['stacksPerHour'])
+        self.assertEqual(rates['stacks'], 1)
+        self.assertIsNone(rates['catches'][0]['perHour'])
+        self.assertEqual(rates['amount'], 10)
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.assertEqual(self.request('/api/catches')[1]['rates']['perHour'], 10)
+        self.controller.sessions = []
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.assertEqual(self.request('/api/catches')[1]['rates'], {
+            'seconds': 3600, 'amount': 0, 'perHour': 0, 'catches': [], 'stacks': 0, 'stacksPerHour': 0})
+
+    def test_stack_rates_round_each_fish_total_up_after_combining_sessions(self):
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.create_catch_log(3600, 'Goldshire')
+        self.controller.add_catch(0, 'Fish A', 21)
+        self.controller.add_catch(1, 'Fish A', 2)
+        self.controller.add_catch(1, 'Fish B', 50)
+        rates = self.request('/api/catches')[1]['rates']
+        self.assertEqual(rates['stacks'], 5)
+        self.assertEqual(rates['stacksPerHour'], 2.5)
+        self.assertEqual({entry['fish']: entry['stacks'] for entry in rates['catches']}, {'Fish A': 2, 'Fish B': 3})
+        self.controller.add_catch(0, 'Fish C', 20)
+        self.assertEqual(self.controller.catch_log()['rates']['stacks'], 6)
+        self.controller.add_catch(0, 'Fish C', 1)
+        self.assertEqual(self.controller.catch_log()['rates']['stacks'], 7)
+
+    def test_bot_sessions_do_not_create_or_change_manual_catch_logs(self):
+        self.controller.create_catch_log(7200, 'Stormwind')
+        before = self.controller.catch_log()
+        self.controller.start()
+        self.controller.stop()
+        self.controller.worker.join(2)
+        self.assertEqual(self.controller.catch_log(), before)
+
+    def test_stacking_flag_persists_and_mixed_lines_keep_their_counts(self):
+        self.controller.create_catch_log(7200, 'Stormwind')
+        for amount in (3, 2):
+            status, data = self.request('/api/catches', {
+                'session': 0, 'fish': 'Rare fish', 'amount': amount, 'stacks': False})
+            self.assertEqual(status, 200)
+        self.assertEqual(data['sessions'][0]['catches'], [{'fish': 'Rare fish', 'amount': 5, 'stacks': False}])
+        self.assertEqual(data['rates']['stacks'], 5)
+        self.assertEqual(data['rates']['stacksPerHour'], 2.5)
+        self.assertEqual(data['rates']['catches'][0]['nonStackingAmount'], 5)
+        # Different flags remain distinct lines so an add cannot reclassify previous catches.
+        self.controller.add_catch(0, 'Rare fish', 23)
+        self.controller.create_catch_log(3600, 'Goldshire')
+        data = self.controller.add_catch(1, 'Rare fish', 1, False)
+        self.assertEqual(len(data['sessions'][0]['catches']), 2)
+        self.assertEqual(data['rates']['catches'][0], {
+            'fish': 'Rare fish', 'amount': 29, 'nonStackingAmount': 6, 'stacks': 8, 'perHour': 29 / 3})
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log(), data)
+
+    def test_legacy_catches_default_to_stacking_without_rewriting_on_read(self):
+        self.controller.write_catches([{'date': '2026-11-06T12:00:00+00:00', 'location': 'Stormwind',
+                                       'sessionLength': 3600, 'catches': [{'fish': 'Catfish', 'amount': 21}]}])
+        disk = self.controller.catches_path.read_bytes()
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log()['rates']['stacks'], 2)
+        self.assertEqual(self.controller.catches_path.read_bytes(), disk)
+        data = restored.add_catch(0, 'Catfish', 2)
+        self.assertEqual(data['sessions'][0]['catches'], [{'fish': 'Catfish', 'amount': 23, 'stacks': True}])
 
     def test_network_access_requires_allowed_peer_and_destination_host(self):
         self.assertEqual(self.server.server_address[0], '127.0.0.1')

@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id)
 let schema, defaults, cfg, saved, token, currentState
 let mode = 'reel', dirty = false, connected = false, busy = false, previewValid = false
 let previewVersion = 0, previewTimer, hiddenThrough = 0, entries = []
+let catchData, catchBusy = false
 const helps = {
  timing:'Minimum is enforced. Spread reference is not a ceiling. Cast mean follows each reel sample.',
  detection:'The loop also sleeps 0.01 s and reads 1024 frames. Check interval alone does not set detection latency. The audio device must support your sample rate and channel count.',
@@ -32,6 +33,89 @@ function controls() {
  $('reset').disabled = !connected || busy || active
  document.querySelectorAll('#fields input').forEach(el => el.disabled = !connected || busy || active)
  $('configState').textContent = dirty ? 'Unsaved changes' : 'Saved settings'
+ const catchDisabled = !connected || catchBusy || !catchData?.sessions.length
+ for (const id of ['catchSession', 'fishName', 'catchAmount', 'catchStacks', 'addCatch', 'exportCatches']) $(id).disabled = catchDisabled
+ for (const id of ['catchLocation', 'sessionLength', 'createCatchLog']) $(id).disabled = !connected || catchBusy
+}
+function drawCatches() {
+ const session = catchData?.sessions[Number($('catchSession').value)]
+ $('catchRows').replaceChildren()
+ let total = 0
+ for (const catchEntry of session?.catches || []) {
+  const row = document.createElement('tr'), fish = document.createElement('td'), amount = document.createElement('td')
+  fish.textContent = catchEntry.fish
+  amount.textContent = catchEntry.amount.toLocaleString()
+  const stacks = document.createElement('td')
+  stacks.textContent = catchEntry.stacks === false ? 'No' : 'Yes'
+  total += catchEntry.amount
+  row.append(fish, amount, stacks)
+  $('catchRows').append(row)
+ }
+ $('catchTotal').textContent = total.toLocaleString() + ' fish logged'
+ $('catchDuration').textContent = session ? `${session.location} | ${session.sessionLength.toLocaleString()} seconds | Created ${new Date(session.date).toLocaleString()}` : 'Create a session log above to begin.'
+ controls()
+}
+function applyCatches(data) {
+ if (JSON.stringify(catchData) === JSON.stringify(data)) return
+ const previous = $('catchSession').value
+ const newSession = !catchData || data.sessions.length !== catchData.sessions.length
+ catchData = data
+ $('catchSession').replaceChildren()
+ data.sessions.forEach((session, index) => {
+  const option = document.createElement('option')
+  option.value = index
+  option.textContent = `${index + 1}. ${session.location} | ${new Date(session.date).toLocaleString()} | ${session.sessionLength.toLocaleString()} s`
+  $('catchSession').prepend(option)
+ })
+ $('catchSession').value = newSession ? String(data.sessions.length - 1) : previous
+ $('fishNames').replaceChildren()
+ data.fishNames.forEach(name => {
+  const option = document.createElement('option')
+  option.value = name
+  $('fishNames').append(option)
+ })
+ drawCatches()
+ drawCatchRates()
+}
+function drawCatchRates() {
+ const {rates, sessions} = catchData
+ const rateText = value => value === null ? 'Not available' : value.toLocaleString(undefined, {minimumFractionDigits:1, maximumFractionDigits:1})
+ $('totalCatchRate').textContent = rateText(rates.perHour)
+ $('totalStackRate').textContent = rateText(rates.stacksPerHour)
+ $('stackBreakdownRows').replaceChildren()
+ for (const entry of rates.catches) {
+  const item = document.createElement('li')
+  const stackingAmount = entry.amount - entry.nonStackingAmount
+  const full = Math.floor(stackingAmount / 20), remainder = stackingAmount % 20
+  const parts = [full ? `${full.toLocaleString()} full` : '', remainder ? `1 partial (${remainder}/20)` : '', entry.nonStackingAmount ? `${entry.nonStackingAmount.toLocaleString()} non-stacking (1 slot each)` : ''].filter(Boolean).join(' + ')
+  item.textContent = `${entry.fish}: ${entry.amount.toLocaleString()} fish = ${entry.stacks.toLocaleString()} ${entry.stacks === 1 ? 'stack' : 'stacks'}: ${parts}`
+  $('stackBreakdownRows').append(item)
+ }
+ $('stackBreakdownTotal').textContent = `${rates.stacks.toLocaleString()} ${rates.stacks === 1 ? 'stack' : 'stacks'} / ${(rates.seconds / 3600).toLocaleString(undefined, {maximumFractionDigits:2})} hours = ${rateText(rates.stacksPerHour)} stacks/hour`
+ $('rateSessions').textContent = `${sessions.length} ${sessions.length === 1 ? 'session' : 'sessions'}`
+ $('rateContext').textContent = `${rates.amount.toLocaleString()} fish caught · ${(rates.seconds / 3600).toLocaleString(undefined, {maximumFractionDigits:2})} hours fished`
+ $('catchRateRows').replaceChildren()
+ for (const entry of rates.catches) {
+  const row = document.createElement('tr')
+  for (const value of [entry.fish, entry.amount.toLocaleString(), rateText(entry.perHour)]) {
+   const cell = document.createElement('td')
+   cell.textContent = value
+   row.append(cell)
+  }
+  $('catchRateRows').append(row)
+ }
+ $('rateWarning').textContent = !sessions.length ? 'Create a session log to see your catch rates.' : !rates.seconds ? 'An hourly rate needs recorded fishing time.' : sessions.some(session => !session.sessionLength && session.catches.length) ? 'Some catches have a session duration of 0 seconds. Rates may be overstated.' : ''
+}
+async function refreshCatches() {
+ if (catchBusy) return
+ try {
+  const data = await api('/api/catches')
+  if (!catchBusy) {
+   applyCatches(data)
+   $('catchLoadError').textContent = ''
+  }
+ }
+ catch (error) { $('catchLoadError').textContent = error.message }
 }
 function fill(values) {
  cfg = {...values}
@@ -173,7 +257,9 @@ async function action(path,payload) {
  }
 }
 async function poll() {
- try { applyState(await api('/api/state')) }
+ try {
+  applyState(await api('/api/state'))
+ }
  catch (error) {
   connected = false
   $('connection').textContent = 'Controller disconnected'
@@ -205,6 +291,7 @@ async function init() {
   fill(saved)
   $('configHelp').textContent = helps.timing
   applyState(boot.state)
+  if ($('catchLog').open) await refreshCatches()
   await updatePreview()
   poll()
  } catch (error) {
@@ -243,6 +330,79 @@ $('reset').onclick = () => { fill(defaults)
 $('save').onclick = () => { try { action('/api/config',{config:readFields()}) } catch (error) { previewError(error.message) } }
 $('start').onclick = () => action('/api/start',{})
 $('stop').onclick = () => action('/api/stop',{})
+$('catchNav').onclick = () => { $('catchLog').open = true }
+$('catchLog').ontoggle = () => { if ($('catchLog').open && connected) refreshCatches() }
+$('catchSession').onchange = drawCatches
+$('stackRateStat').onmouseenter = () => { $('stackBreakdown').hidden = false }
+$('stackRateStat').onmouseleave = () => { if (document.activeElement !== $('stackRate')) $('stackBreakdown').hidden = true }
+$('stackRate').onfocus = $('stackRate').onclick = () => { $('stackBreakdown').hidden = false }
+$('stackRate').onblur = () => { $('stackBreakdown').hidden = true }
+$('stackRate').onkeydown = e => { if (e.key === 'Escape') $('stackBreakdown').hidden = true }
+function selectCatchTab(tab) {
+ document.querySelectorAll('#catchTabs button').forEach(button => {
+  const selected = button === tab
+  button.classList.toggle('active', selected)
+  button.setAttribute('aria-selected', String(selected))
+  button.tabIndex = selected ? 0 : -1
+  $(button.getAttribute('aria-controls')).hidden = !selected
+ })
+ if (connected) refreshCatches()
+}
+$('catchTabs').onclick = e => {
+ if (e.target.matches('button')) selectCatchTab(e.target)
+}
+$('catchTabs').onkeydown = e => {
+ if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+ e.preventDefault()
+ const tab = e.key === 'Home' ? $('sessionLogsTab') : e.key === 'End' ? $('catchRatesTab') : e.target === $('sessionLogsTab') ? $('catchRatesTab') : $('sessionLogsTab')
+ selectCatchTab(tab)
+ tab.focus()
+}
+$('newCatchLog').onsubmit = async e => {
+ e.preventDefault()
+ if (catchBusy) return
+ catchBusy = true
+ controls()
+ $('catchError').textContent = ''
+ $('catchMessage').textContent = ''
+ try {
+  applyCatches(await api('/api/catches/new', {sessionLength:Number($('sessionLength').value), location:$('catchLocation').value}))
+  $('catchMessage').textContent = 'Session log saved. Add your catches below.'
+ } catch (error) { $('catchError').textContent = error.message }
+ finally {
+  catchBusy = false
+  controls()
+ }
+}
+$('catchForm').onsubmit = async e => {
+ e.preventDefault()
+ if (catchBusy) return
+ const session = Number($('catchSession').value), fish = $('fishName').value, amount = Number($('catchAmount').value)
+ catchBusy = true
+ controls()
+ $('catchError').textContent = ''
+ $('catchMessage').textContent = ''
+ try {
+  applyCatches(await api('/api/catches', {session, fish, amount, stacks:$('catchStacks').checked}))
+  $('catchMessage').textContent = `Added ${amount} ${fish.trim()} to session ${session + 1}.`
+ } catch (error) { $('catchError').textContent = error.message }
+ finally {
+  catchBusy = false
+  controls()
+ }
+}
+$('exportCatches').onclick = async () => {
+ const sessionIndex = Number($('catchSession').value)
+ try {
+  const data = await api('/api/catches')
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data.sessions[sessionIndex], null, 2) + '\n'], {type:'application/json'}))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `fishing-session-${sessionIndex + 1}.json`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+ } catch (error) { $('catchError').textContent = error.message }
+}
 $('filter').oninput = drawLogs
 $('clear').onclick = () => { hiddenThrough = entries.at(-1)?.id || 0
  drawLogs() }

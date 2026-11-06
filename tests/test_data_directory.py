@@ -15,15 +15,28 @@ class DataDirectoryTests(unittest.TestCase):
 from configuration import CONFIG_PATH, DEFAULTS, STATS_PATH, save_config
 from logger import LOG_FOLDER, log
 from main import STATS_PATH as runtime_stats
+from webui import Controller
 assert CONFIG_PATH.parent == LOG_FOLDER.parent == STATS_PATH.parent
 assert runtime_stats == STATS_PATH
 save_config(dict(DEFAULTS, THRESHOLD=8000))
 log('Volume persistence test')
 STATS_PATH.write_text('test stats', encoding='utf-8')
+controller = Controller(log_sink=lambda _: None)
+controller.create_catch_log(7200, 'Stormwind')
+controller.add_catch(0, 'Bristle Whisker Catfish', 3)
+controller.add_catch(0, 'Rare fish', 3, False)
 '''
             subprocess.run([sys.executable, '-c', script], env=env, check=True, capture_output=True)
             subprocess.run([sys.executable, '-c',
-                            'from configuration import load_config\nassert load_config()["THRESHOLD"] == 8000'],
+                            'from configuration import load_config\n'
+                            'from webui import Controller\n'
+                            'assert load_config()["THRESHOLD"] == 8000\n'
+                            'data = Controller(log_sink=lambda _: None).catch_log()\n'
+                            'assert data["sessions"][0]["sessionLength"] == 7200\n'
+                            'assert data["sessions"][0]["location"] == "Stormwind"\n'
+                            'assert data["sessions"][0]["catches"] == [{"fish": "Bristle Whisker Catfish", "amount": 3, "stacks": True}, {"fish": "Rare fish", "amount": 3, "stacks": False}]\n'
+                            'assert data["rates"]["stacks"] == 4\n'
+                            'assert data["fishNames"] == ["Bristle Whisker Catfish", "Rare fish"]'],
                            env=env, check=True, capture_output=True)
             self.assertEqual((data / 'stats.txt').read_text(encoding='utf-8'), 'test stats')
             logs = list((data / 'logs').glob('*-log.txt'))

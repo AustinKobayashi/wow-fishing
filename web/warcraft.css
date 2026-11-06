@@ -29,3 +29,24 @@ button{border-radius:2px;border-color:#79613c;background:linear-gradient(#393326
 @media(max-width:620px){main{padding:14px}.fishing-hero{padding:25px 19px;min-height:310px}.fishing-hero:after{background:linear-gradient(90deg,#101a19ef,#101a1970),linear-gradient(0deg,#07100dee,transparent)}.hero-copy>p{font-size:13px}.hero-copy>.eyebrow{font-size:7px}.location-tag{position:static;margin-top:15px;font-size:11px}.location-tag small{display:none}.hero-actions{gap:7px}button.primary{font-size:15px;padding-right:9px}button.primary span{display:none}button.danger{padding:12px}.card{padding:15px}.card .value{font-size:24px}.panel-head,.panel-body{padding:16px}.hero-caption{font-size:9px}.metrics{grid-template-columns:repeat(3,1fr)}.metric strong{font-size:20px}.metric .small{font-size:9px}.legend{gap:10px}.asset-credit{text-align:left}footer{gap:15px}}
 
 .config-foot #save{justify-content:center;margin-bottom:9px;padding:10px}.log-tools{flex-wrap:wrap}.log-line span{overflow-wrap:anywhere;white-space:pre-wrap;min-width:0}.log-line time,.log-line b{flex-shrink:0}#notice.connection-error{color:#ffc0a4;border-color:#a45f37}.field input:disabled{opacity:.6}.panel-head.row{flex-wrap:wrap}
+.catch-panel { margin: 0 }
+.catch-panel > summary { color: var(--gold) }
+.catch-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px }
+.catch-table { width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed }
+.catch-table caption { text-align: left; margin: 16px 0 8px; color: var(--gold) }
+.catch-table th, .catch-table td { padding: 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere }
+.catch-table th:last-child, .catch-table td:last-child { width: 30%; text-align: right }
+.catch-tabs { margin: 0 0 18px }
+.catch-rate-total { margin: 14px 0 8px }
+.catch-rate-total strong { font: 36px Georgia,serif; color: var(--mint) }
+.catch-rate-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; position: relative }
+#stackRate { background: none; border: 0; box-shadow: none; padding: 0; text-align: left }
+#stackRate .small { text-decoration: underline dotted; text-underline-offset: 4px }
+.stack-breakdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; background: var(--panel); border: 1px solid var(--gold); border-radius: 3px; padding: 14px; box-shadow: 0 4px 12px #0008; overflow-wrap: anywhere }
+.stack-breakdown ul { padding-left: 18px; margin: 10px 0; font-size: 12px }
+.stack-breakdown li + li { margin-top: 8px }
+.catch-rates-table th:not(:first-child), .catch-rates-table td:not(:first-child) { width: 23%; text-align: right; font-variant-numeric: tabular-nums }
+.catch-rates-table td:last-child { color: var(--mint) }
+.catch-stacks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px }
+.catch-stacks input { width: auto; margin: 0; accent-color: var(--mint) }
+.catch-entry-table th:not(:first-child), .catch-entry-table td:not(:first-child) { width: 23%; text-align: right }

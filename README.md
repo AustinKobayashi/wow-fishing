@@ -25,7 +25,7 @@ If your audio device has a different control number, use the matching `/dev/snd/
 
 Open **http://192.168.1.233:8766** on the LAN or **http://100.104.134.32:8766** through Tailscale. Compose allows clients from `192.168.1.0/24` and Tailscale's `100.64.0.0/10` range, plus loopback. Adjust the LAN subnet in `command` if deploying elsewhere. Do not add a port mapping with host networking. This Compose file targets a Linux Pi, not Docker Desktop's audio devices.
 
-Settings, logs, and stats are kept in the `fishing-data` named volume at `/data`. Rebuilding the image or running `docker compose down` preserves them. `docker compose down -v` deletes them. Existing native files are not imported automatically. To copy a native configuration before the first session:
+Settings, catch logs, logs, and stats are kept in the `fishing-data` named volume at `/data`. Rebuilding the image or running `docker compose down` preserves them. `docker compose down -v` deletes them. Existing native files are not imported automatically. To copy a native configuration before the first session:
 
 ```bash
 docker compose cp config.json fishing:/data/config.json
@@ -110,6 +110,29 @@ Without `--allow-network`, the server remains loopback-only at **http://127.0.0.
 - **Restore defaults** creates an unsaved draft. Stop the bot and save to apply it.
 
 You can still run `python3 main.py` for a terminal-only session using the same saved configuration. Ctrl+C requests cleanup.
+
+### Log a catch
+
+Open **Log a catch** from the sidebar or expand its panel beneath Tackle & settings. After fishing, enter your location and session duration in whole seconds, then click **Create session log**. The creation date is recorded automatically. These are manual logs, independent of starting or stopping the bot.
+
+Select a saved log to view its location, creation date, duration, fish counts, and total. Enter a fish name and an amount, then click **Log a catch** to save it immediately. **Stacks** is checked by default. Uncheck it for fish that cannot stack. Logging the same fish with the same flag adds to that line's count. Different flags stay on separate lines and do not change earlier catches. Fish names from all saved logs appear as suggestions, and capitalization differences reuse the original name. **Export session JSON** downloads the selected log:
+
+```json
+{
+  "date": "2026-11-06T18:00:00+00:00",
+  "location": "Stormwind",
+  "sessionLength": 7200,
+  "catches": [
+    {"fish": "Bristle Whisker Catfish", "amount": 3, "stacks": true}
+  ]
+}
+```
+
+All logs are stored as an expandable JSON array in `catches.json`, beside `config.json`. In Docker this is `/data/catches.json` in the persistent volume. Native runs use the repository folder unless `FISHING_DATA_DIR` is set. Writes replace the file atomically. Logs and fish names survive controller restarts. Dates are stored in UTC and displayed in your browser's local time. Reopen the panel to refresh logs added from another browser.
+
+The **Catch rates** tab in **Log a catch** shows the combined fish per hour, total catches, total hours, and a per-fish table across every saved session. Each rate is `total fish * 3600 / total session seconds`, including time from sessions with no catches of that fish. Longer sessions contribute proportionally. Rates are calculated from saved logs and are not stored separately. With no recorded time, rates show **Not available**. Logs with catches but zero duration are flagged because they can overstate rates. Switch back to **Session logs** to view or add entries.
+
+**Stacks/hour** uses 20 fish per stack for lines with **Stacks** checked, with each species rounded up separately after combining its stacking catches across all sessions. Non-stacking catches each occupy one slot. For example, 23 stacking fish A and 50 stacking fish B occupy 2 + 3 = 5 stacks. Three non-stacking fish add another 3 slots. Divide that total by total recorded hours for the rate. Hover, focus, or tap the stat to see full, partial, and non-stacking counts. Press Escape or move focus away to dismiss the breakdown. Older entries without a `stacks` flag default to stacking and do not need migration.
 
 ## Timing semantics
 

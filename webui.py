@@ -1,7 +1,8 @@
 """Fishing web UI. Use --allow-network to enable access from trusted IPv4 subnets."""
 import argparse
+from copy import deepcopy
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import IPv4Address, IPv4Network
@@ -39,6 +40,11 @@ class Controller:
         self.error = None
         self.started = None
         self.elapsed = 0
+        self.catches_path = self.config_path.with_name('catches.json')
+        self.sessions = (json.loads(self.catches_path.read_text(encoding='utf-8'))
+                         if self.catches_path.exists() else [])
+        if not isinstance(self.sessions, list):
+            raise ValueError('catches.json must contain an array of sessions.')
         self.logs = deque(maxlen=200)
         self.sequence = 0
         self.closing = False
@@ -76,6 +82,79 @@ class Controller:
             self.config = save_config(values, self.config_path)
             self.record('Configuration saved. It will be used for the next session.')
             return self.config.copy()
+
+    def catch_log(self):
+        with self.lock:
+            sessions = deepcopy(self.sessions)
+            names = sorted({catch['fish'] for session in sessions for catch in session['catches']},
+                           key=str.casefold)
+            seconds = sum(session['sessionLength'] for session in sessions)
+            amounts = dict.fromkeys(names, 0)
+            non_stacking = dict.fromkeys(names, 0)
+            for session in sessions:
+                for catch in session['catches']:
+                    amounts[catch['fish']] += catch['amount']
+                    if not catch.get('stacks', True):
+                        non_stacking[catch['fish']] += catch['amount']
+            total = sum(amounts.values())
+            rates = dict(seconds=seconds, amount=total, perHour=total * 3600 / seconds if seconds else None,
+                         catches=[dict(fish=fish, amount=amount, nonStackingAmount=non_stacking[fish],
+                                       stacks=(amount - non_stacking[fish] + 19) // 20 + non_stacking[fish],
+                                       perHour=amount * 3600 / seconds if seconds else None)
+                                  for fish, amount in sorted(amounts.items(), key=lambda item: (-item[1], item[0].casefold()))])
+            rates['stacks'] = sum(catch['stacks'] for catch in rates['catches'])
+            rates['stacksPerHour'] = rates['stacks'] * 3600 / seconds if seconds else None
+            return dict(sessions=sessions, fishNames=names, rates=rates)
+
+    def create_catch_log(self, duration, location):
+        if type(duration) is not int or not 0 <= duration <= 9007199254740991:
+            raise ValueError('Session length must be a nonnegative whole number of seconds within the safe integer range.')
+        if not isinstance(location, str) or not 1 <= len(location.strip()) <= 120:
+            raise ValueError('Enter a location between 1 and 120 characters.')
+        with self.lock:
+            if self.closing:
+                raise Conflict('The controller is shutting down.')
+            session = dict(date=datetime.now(timezone.utc).isoformat(), location=location.strip(),
+                           sessionLength=duration, catches=[])
+            self.write_catches(self.sessions + [session])
+            return self.catch_log()
+
+    def write_catches(self, sessions):
+        self.catches_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.catches_path.with_suffix('.json.tmp')
+        temporary.write_text(json.dumps(sessions, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+        temporary.replace(self.catches_path)
+        self.sessions = sessions
+
+    def add_catch(self, session, fish, amount, stacks=True):
+        if not isinstance(fish, str) or not 1 <= len(fish.strip()) <= 120:
+            raise ValueError('Enter a fish name between 1 and 120 characters.')
+        if type(amount) is not int or not 1 <= amount <= 9007199254740991:
+            raise ValueError('Amount must be a positive whole number within the safe integer range.')
+        if type(stacks) is not bool:
+            raise ValueError('Stacks must be true or false.')
+        fish = fish.strip()
+        with self.lock:
+            if type(session) is not int or not 0 <= session < len(self.sessions):
+                raise ValueError('Choose an existing fishing session.')
+            if self.closing:
+                raise Conflict('The controller is shutting down.')
+            sessions = self.catch_log()['sessions']
+            names = {catch['fish'].casefold(): catch['fish']
+                     for entry in sessions for catch in entry['catches']}
+            fish = names.get(fish.casefold(), fish)
+            catches = sessions[session]['catches']
+            for catch in catches:
+                if catch['fish'] == fish and catch.get('stacks', True) == stacks:
+                    if catch['amount'] + amount > 9007199254740991:
+                        raise ValueError('The total amount exceeds the safe integer range.')
+                    catch['amount'] += amount
+                    catch['stacks'] = stacks
+                    break
+            else:
+                catches.append(dict(fish=fish, amount=amount, stacks=stacks))
+            self.write_catches(sessions)
+            return self.catch_log()
 
     def start(self):
         with self.lock:
@@ -186,6 +265,8 @@ class Handler(BaseHTTPRequestHandler):
                            state=self.server.controller.snapshot()))
         elif path == '/api/state':
             self.json(self.server.controller.snapshot())
+        elif path == '/api/catches':
+            self.json(self.server.controller.catch_log())
         else:
             relative = 'index.html' if path == '/' else path.lstrip('/')
             file = (WEB_ROOT / relative).resolve()
@@ -221,6 +302,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(controller.start())
             elif path == '/api/stop':
                 self.json(controller.stop())
+            elif path == '/api/catches':
+                self.json(controller.add_catch(payload.get('session'), payload.get('fish'), payload.get('amount'),
+                                               payload.get('stacks', True)))
+            elif path == '/api/catches/new':
+                self.json(controller.create_catch_log(payload.get('sessionLength'), payload.get('location')))
             else:
                 self.json({'error': 'Not found'}, 404)
         except Conflict as exc:

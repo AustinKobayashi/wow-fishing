@@ -187,3 +187,5 @@ Desktop.ini
 # Local web UI settings
 config.json
 config.json.tmp
+catches.json
+catches.json.tmp
