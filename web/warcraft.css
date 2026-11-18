@@ -59,3 +59,24 @@ button{border-radius:2px;border-color:#79613c;background:linear-gradient(#393326
 .catch-entry-table th, .catch-entry-table td { padding-left: 4px; padding-right: 4px }
 .catch-entry-table th { white-space: nowrap; font-size: 12px }
 .catch-entry-table td.catch-row-editor { width: auto; text-align: left; padding: 8px 0 }
+
+.fishing-hero { gap: 28px; align-items: center }
+.hero-copy { flex: 1; min-width: 0 }
+.hero-state-column { flex: 0 0 310px; min-width: 0 }
+.hero-state-column .location-tag { position: static; margin-top: 14px; text-align: right }
+.activity-box { position: relative; overflow: hidden; padding: 21px; background: #14221fe8; border: 1px solid #627a62 }
+.activity-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: #85bcae28; pointer-events: none }
+.activity-content { position: relative }
+.activity-content > .eyebrow { color: #acc8bb; font-size: 11px; letter-spacing: 1.5px }
+.activity-content h2 { display: block; font: 23px/1.2 Georgia,serif; min-height: 2.4em; margin: 11px 0 10px; color: #f4e3bb }
+.activity-timer { font: 25px/1.2 Georgia,serif; font-variant-numeric: tabular-nums; color: #eaf0df }
+.activity-caption, .activity-content p { font-size: 12px; color: #c1cbbd }
+.activity-caption { margin-top: 5px }
+.activity-content p { margin: 14px 0 0; min-height: 36px }
+.activity-next { border-top: 1px solid #415547; padding-top: 12px; margin-top: 13px; min-height: 49px; font-size: 12px; color: #d4c49e }
+.activity-box[data-stage="unavailable"], .activity-box[data-stage="error"] { border-color: #ad8853 }
+@media(max-width:800px) {
+ .fishing-hero { flex-direction: column; align-items: stretch }
+ .hero-state-column { flex: none; width: 100% }
+ .activity-box { padding: 18px }
+}

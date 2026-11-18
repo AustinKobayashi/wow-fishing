@@ -7,7 +7,16 @@
 <link rel="stylesheet" href="warcraft.css">
 </head>
 <body><div class="shell"><aside><img class="wow-logo" src="assets/wow-classic.png" alt="World of Warcraft Classic"><div class="brand">The Angler's Rest</div><div class="eyebrow brand-sub">A personal fishing companion</div><div class="nav-caption">YOUR CAMP</div><nav><a href="#overview"><img src="assets/fishing.jpg" alt=""> Fishing camp</a><a href="#configuration"><img src="assets/gear.jpg" alt=""> Tackle &amp; settings</a><a href="#distribution"><img src="assets/lure.jpg" alt=""> Timing &amp; chances</a><a href="#catchLog" id="catchNav"><img src="assets/fishing.jpg" alt=""> Log a catch</a><a href="#activity"><img src="assets/journal.jpg" alt=""> Fishing journal</a></nav><div class="camp-flavor"><div class="flavor-rule">✦</div><p>Good things come to<br>those who bait.</p><span>ONE MORE CAST.</span></div><div class="host"><span class="dot"></span>Local controller<p id="connection">Connecting...</p><span class="badge">WOW FISHING</span></div></aside>
-<main id="overview"><header class="fishing-hero"><div class="hero-copy"><div class="eyebrow">WORLD OF WARCRAFT / FISHING CAMP</div><h1>The Angler's Rest</h1><p>A quiet shore. A patient cast. A bag full of fish.</p><div class="hero-rule"><span>✦</span></div><div class="hero-actions"><button id="start" class="primary" disabled><img src="assets/fishing.jpg" alt=""> Cast a line <span>START BOT</span></button><button id="stop" class="danger" disabled>Stop fishing</button></div><div class="hero-caption">Your favorite fishing spot, with a few extra knobs.</div></div><div class="location-tag"><span>✦</span> Somewhere in Azeroth <small>Just you and the water.</small></div></header>
+<main id="overview"><header class="fishing-hero"><div class="hero-copy"><div class="eyebrow">WORLD OF WARCRAFT / FISHING CAMP</div><h1>The Angler's Rest</h1><p>A quiet shore. A patient cast. A bag full of fish.</p><div class="hero-rule"><span>✦</span></div><div class="hero-actions"><button id="start" class="primary" disabled><img src="assets/fishing.jpg" alt=""> Cast a line <span>START BOT</span></button><button id="stop" class="danger" disabled>Stop fishing</button><button id="reconnectMicrophone" disabled>Reconnect microphone</button></div><p id="microphoneMessage" class="small" role="status"></p><div class="hero-caption">Your favorite fishing spot, with a few extra knobs.</div></div>
+<div class="hero-state-column"><section class="activity-box" id="activityBox" aria-labelledby="activityName">
+<div class="activity-fill" id="activityFill" aria-hidden="true"></div>
+<div class="activity-content"><div class="eyebrow">Current activity</div>
+<h2 id="activityName" role="status" aria-live="polite">Connecting</h2>
+<div class="activity-timer" id="activityTimer">Please wait</div>
+<div class="activity-caption" id="activityCaption">Waiting for the bot's current state</div>
+<p id="activityDetail">Connecting to the fishing controller.</p>
+<div class="activity-next" id="activityNext">Next: Receive current activity</div></div>
+</section><div class="location-tag"><span>✦</span> Somewhere in Azeroth <small>Just you and the water.</small></div></div></header>
 <div class="notice" id="notice" role="status">Connecting to the Python controller...</div>
 <div class="cards"><div class="card"><div class="eyebrow">Bot status</div><div class="value" id="status">Connecting</div><div class="small">Hardware session</div></div><div class="card"><div class="eyebrow">Session time</div><div class="value" id="elapsed">00:00:00</div><div class="small" id="runlimit">5 hour run limit</div></div><div class="card"><div class="eyebrow">Detection threshold</div><div class="value" id="threshold">7,000</div><div class="small">Mean absolute audio amplitude</div></div><div class="card"><div class="eyebrow">Reel cutoff</div><div class="value" id="cutoffCard">2.100 <span class="small">s</span></div><div class="small">Skip at or above this delay</div></div></div>
 
@@ -23,7 +32,7 @@
 <p>Create a log after fishing, then add your catches. Logs and fish names are saved for future visits.</p>
 <form id="newCatchLog">
 <div class="group">
-<div class="field"><label for="catchLocation">Location</label><input id="catchLocation" maxlength="120" placeholder="Stormwind" required disabled></div>
+<div class="field"><label for="catchLocation">Location</label><input id="catchLocation" list="catchLocations" autocomplete="off" maxlength="120" placeholder="Stormwind" required disabled><datalist id="catchLocations"></datalist></div>
 <div class="field"><label for="sessionLength">Session time (seconds)</label><input id="sessionLength" type="number" min="0" max="9007199254740991" step="1" placeholder="7200" required disabled></div>
 </div>
 <div class="catch-actions"><button id="createCatchLog" disabled>Create session log</button></div>
@@ -34,7 +43,7 @@
 <form id="catchForm">
 <h3>Add a catch</h3>
 <div class="group">
-<div class="field"><label for="fishName">Fish</label><input id="fishName" list="fishNames" maxlength="120" placeholder="Bristle Whisker Catfish" required disabled><datalist id="fishNames"></datalist></div>
+<div class="field"><label for="fishName">Fish</label><input id="fishName" list="fishNames" autocomplete="off" maxlength="120" placeholder="Bristle Whisker Catfish" required disabled><datalist id="fishNames"></datalist></div>
 <div class="field"><label for="catchAmount">Amount to add</label><input id="catchAmount" type="number" min="1" max="9007199254740991" step="1" value="1" required disabled></div>
 </div>
 <label class="catch-stacks"><input id="catchStacks" type="checkbox" checked disabled> Stacks <span class="small">20 per stack. Uncheck for non-stacking fish.</span></label>
@@ -45,7 +54,8 @@
 <table class="catch-table catch-entry-table"><caption id="catchTotal">No catches logged</caption><thead><tr><th scope="col">Fish</th><th scope="col">Amount</th><th scope="col">Stacks</th><th scope="col">Actions</th></tr></thead><tbody id="catchRows"></tbody></table>
 </div>
 <div id="catchRatesPanel" role="tabpanel" aria-labelledby="catchRatesTab" hidden>
-<div class="row"><h2>All recorded sessions</h2><span id="rateSessions" class="small">0 sessions</span></div>
+<div class="row"><h2>Catch rates by location</h2><span id="rateSessions" class="small">0 sessions</span></div>
+<div class="field"><label for="rateLocation">Location</label><select id="rateLocation" disabled><option value="">No locations yet</option></select></div>
 <div class="catch-rate-stats">
 <p class="catch-rate-total"><strong id="totalCatchRate">Not available</strong> <span class="small">fish / hour</span></p>
 <div id="stackRateStat">
@@ -54,8 +64,8 @@
 </div>
 </div>
 <p id="rateContext" class="small">No sessions recorded yet.</p>
-<table class="catch-table catch-rates-table"><caption class="small">Per-fish averages across all sessions</caption><thead><tr><th scope="col">Fish</th><th scope="col">Caught</th><th scope="col">Per hour</th></tr></thead><tbody id="catchRateRows"></tbody></table>
-<p class="small">Total catches divided by total recorded fishing hours, including sessions where a fish wasn't caught.</p>
+<table class="catch-table catch-rates-table"><caption class="small">Per-fish averages at the selected location</caption><thead><tr><th scope="col">Fish</th><th scope="col">Caught</th><th scope="col">Per hour</th></tr></thead><tbody id="catchRateRows"></tbody></table>
+<p class="small">Catches at this location divided by recorded fishing hours at this location, including sessions where a fish wasn't caught.</p>
 <p id="rateWarning" class="small" role="status"></p>
 </div>
 <div id="catchLoadError" class="error" role="alert"></div>
@@ -63,4 +73,4 @@
 </details></div>
 <div class="stack"><section class="panel" id="distribution"><div class="panel-head"><div class="row"><h2><img class="title-icon" src="assets/fishing.jpg" alt=""> Timing &amp; chances</h2><span class="badge">Python / SciPy</span></div><div class="tabs" id="graphTabs"><button class="active" data-mode="reel">Reel delay</button><button data-mode="cast">Cast delay · conditional</button></div></div><div class="panel-body"><div class="row"><div><h2 id="chartTitle">Most reactions. A few deliberate skips.</h2><p class="small" id="chartSub"></p></div></div><div class="legend"><span><i style="background:var(--mint)"></i>Accepted delay density</span><span id="cutoffLegend"><i style="background:var(--gold)"></i>Skipped by cutoff</span></div><svg class="graph" id="chart" viewBox="0 0 680 250" role="img" aria-label="Probability density of accepted reel delays with shaded cutoff tail"></svg><div class="metrics" id="metrics"></div><div class="scenario"><div><label id="scenarioLabel" for="scenarioInput">Detection age after last cast</label><p class="small" id="scenarioHelp">Scenario only. Used to estimate the fishing-window effect.</p></div><input id="scenarioInput" type="number" min="0" max="600" step="0.1" value="10" aria-label="Scenario seconds"></div><div class="help" id="scenarioResult"></div><details><summary>How these numbers are calculated</summary><p>The helper samples a lower-truncated N(μ, σ²), equivalent to rejecting every value below the minimum. μ = (min + max × modifier) / 2 and σ = (max - min) / (2 × Φ⁻¹(1 - tail / 2)). Max sets the spread, not an upper bound. The tail input is not the missed-event probability.</p><p>Cutoff skip probability is Q((cutoff - μ) / σ) / Q((min - μ) / σ), or 100% when cutoff ≤ min. Expected skips per 1,000 refer to detected events that enter the timing branch, not all casts or failed catches.</p><p>The current main loop sleeps for R, then checks elapsed + R &lt; WOW_FISHING_TIME. With detection age A and negligible overhead, it requires A + 2R &lt; window, so the combined threshold is min(cutoff, (window - A) / 2). Actual scheduling overhead can increase skips.</p><p>Cast delay is conditional on the previous reel sample, which becomes its mean. This preview is a single conditional distribution, not the overall cast distribution. Plotted tails extend beyond the viewport. Probability calculations include the full tail.</p></details></div></section>
 <section class="panel" id="activity"><div class="panel-head row"><h2><img class="title-icon" src="assets/journal.jpg" alt=""> Fishing journal <span class="badge">LIVE</span></h2><div class="log-tools"><input id="filter" placeholder="Filter logs..." aria-label="Filter logs"><button id="clear">Clear view</button><button id="download">Export recent</button></div></div><div class="logs" id="logs" role="log" aria-label="Live bot logs"></div><div class="bottom-note">Latest 200 entries · Updates every second · Full session logs are saved in logs/</div></section></div></div><footer><span>THE ANGLER'S REST / PERSONAL FISHING CAMP</span><span>Python controller · GPIO 27 · Local access</span></footer><div class="asset-credit">World of Warcraft artwork &amp; icons: Blizzard Entertainment. Fishing screenshot via <a href="https://www.wowhead.com/item=111670/enormous-blackwater-whiptail" target="_blank" rel="noreferrer">Wowhead</a>. <a href="assets/sources.json">Asset sources</a></div></main></div>
-<script src="app.js" defer></script></body></html>
+<script src="activity.js" defer></script><script src="app.js" defer></script></body></html>

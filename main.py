@@ -16,7 +16,7 @@ class Stopped(Exception):
 
 
 def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
-         audio_module=None, servo_factory=Servo):
+         audio_module=None, servo_factory=Servo, on_stage=lambda name, duration: None):
     config = validate(config) if config is not None else load_config()
     stop_event = stop_event if stop_event is not None else threading.Event()
     start = time.monotonic()
@@ -24,6 +24,7 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
     audio = stream = servo = None
     reel_times, cast_times = deque(maxlen=10000), deque(maxlen=10000)
     volume_sum = max_volume = detections = idle_counts = 0
+    consecutive_failed_casts = 0
 
     def wait(duration):
         remaining = deadline - time.monotonic()
@@ -33,6 +34,9 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
             raise Stopped('Stop requested.')
         if time.monotonic() >= deadline:
             raise Stopped('Maximum runtime reached.')
+
+    def listening():
+        on_stage('listening', max(0, last_cast + config['LAST_CAST_MAX'] - time.monotonic()))
 
     try:
         if audio_module is None:
@@ -49,16 +53,23 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
         servo = servo_factory(config, wait, log)
         # Preserve the existing cast timestamp and independent reel cutoff semantics.
         last_cast = time.monotonic()
+        on_stage('casting', 2 * config['SERVO_SPEED'])
         servo.press_fishing_button('Casting')
         on_ready()
+        listening()
         log('Listening for a bite.')
         while True:
             wait(0)
             servo.set_neutral()
             if time.monotonic() - last_cast > config['LAST_CAST_MAX']:
                 log('Did not cast, recasting...')
+                consecutive_failed_casts += 1
+                if consecutive_failed_casts >= 5:
+                    raise Stopped('Stopped after 5 consecutive failed casts.')
+                on_stage('casting', 2 * config['SERVO_SPEED'])
                 servo.press_fishing_button('Casting')
                 last_cast = time.monotonic()
+                listening()
             wait(.01)
             # Read only available frames so stop requests are checked while waiting.
             queued = stream.get_read_available()
@@ -76,6 +87,7 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
             # int32 avoids abs(-32768) overflowing an int16 sample.
             level = float(np.abs(data.astype(np.int32)).mean())
             if level > config['THRESHOLD'] and time.monotonic() - last_cast > config['REEL_TIME_DELAY_AFTER_CAST']:
+                consecutive_failed_casts = 0
                 detections += 1
                 volume_sum += level
                 max_volume = max(max_volume, level)
@@ -83,28 +95,40 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                 reel = float(nd.for_config(config, 'REEL_TIME').rvs())
                 reel_times.append(reel)
                 log(f'Reel time: {reel:.6f}')
+                on_stage('reaction', reel)
                 wait(reel)
                 # Intentionally counts reel delay again, matching the existing bot.
                 if time.monotonic() - last_cast + reel < config['WOW_FISHING_TIME'] and reel < config['DONT_REEL_TIME']:
+                    on_stage('reeling', 2 * config['SERVO_SPEED'])
                     servo.press_fishing_button('Reeling')
                 else:
                     log('Skipping reel: hard delay cutoff or fishing window reached.')
-                    wait(max(config['WOW_FISHING_TIME'] - (time.monotonic() - last_cast), .3))
+                    remaining = max(config['WOW_FISHING_TIME'] - (time.monotonic() - last_cast), .3)
+                    on_stage('skipping', remaining)
+                    wait(remaining)
                 if np.random.rand() < config['IDLE_PROBABILITY']:
                     idle_counts += 1
                     duration = np.random.uniform(config['IDLE_TIME_MIN'], config['IDLE_TIME_MAX'])
                     log(f'Idle for {duration:.2f} seconds')
+                    on_stage('idle', float(duration))
                     wait(duration)
                     last_cast = time.monotonic()
                 cast = float(nd.for_config(config, 'CAST_TIME', reel).rvs())
                 cast_times.append(cast)
                 log(f'Cast time: {cast:.6f}')
+                on_stage('castdelay', cast)
                 wait(cast)
+                on_stage('casting', 2 * config['SERVO_SPEED'])
                 servo.press_fishing_button('Casting')
                 last_cast = time.monotonic()
+                listening()
             wait(config['CHECK_INTERVAL'])
     except Stopped as exc:
+        on_stage('stopping', None)
         log(str(exc))
+    except Exception:
+        on_stage('stopping', None)
+        raise
     finally:
         # Try every cleanup even if one device fails. Report failures to the UI.
         cleanup_errors = []

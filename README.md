@@ -75,6 +75,8 @@ docker run --rm wow-fishing:local python -m unittest discover -s tests -v
 
 The image includes PortAudio, PyAudio, NumPy, SciPy, and the pigpio Python client. Its build context excludes local settings, logs, Git history, and hardware-design files. The optional `FISHING_DATA_DIR` environment variable moves all runtime data together. Without it, native runs retain their existing repository-local paths.
 
+The activity box also has hardware-free browser-logic tests. With Node.js installed, run `node --test tests/activity.test.cjs`. Node.js is not needed to run the controller.
+
 ## Run on the Raspberry Pi
 
 From this repository with the Pi's Python environment active:
@@ -104,7 +106,11 @@ Without `--allow-network`, the server remains loopback-only at **http://127.0.0.
 - Edit settings, inspect the updated graph, then **Save settings**. Settings are validated and atomically saved to ignored `config.json`. Graph edits are drafts until saved. Top summary cards show saved settings.
 - **Cast a line** starts one hardware session with the saved values. No GPIO or audio connection is made just by opening the server or page.
 - **Stop fishing** interrupts waits and disables servo pulses during cleanup. Another session cannot start until the worker exits. Native device initialization or reads must return before cleanup can finish, so a stuck driver can leave the status at Stopping.
+- **Reconnect microphone** restarts the web controller after unplugging and reconnecting the USB mic, then checks audio capture using the saved sample rate and channel count. Stop fishing first. The page reconnects automatically and reports the result in the controls or journal. Settings, saved catches, and disk logs are preserved. Fishing stays stopped and the servo is not activated. Unsaved settings remain drafts in the open page.
 - Closing the page does not stop the bot. The configured runtime limit and Ctrl+C/server shutdown also request a stop.
+- Five consecutive "Did not cast, recasting..." events stop the bot before another cast and run normal cleanup. A detected bite resets the count, as does starting a new session.
+- The **Current activity** box follows stage changes sent by the bot over `/api/stages` (server-sent events). Timers use the actual sampled delays and configured press/release timing. The translucent fill drains as time runs out. While listening, it shows listening time and time until the bot's existing recast deadline, not an expected bite time. A timer reaching zero never advances the stage on its own.
+- Opening or reconnecting the page resumes the current stage and its elapsed time. Lost or stale stage updates show **State unavailable** and suspend the timer. These timings estimate software waits, not successful in-game actions. Stage reporting does not wait for browser network writes.
 - The journal polls every second and retains the latest 200 entries in memory. Filter, clear the local view, or export the recent entries. Full bot logs remain in `logs/DD-MM-YYYY-log.txt`. Device-library output written directly to stderr remains in the server terminal.
 - Session summaries are written to `stats.txt`. Timing histories retain the latest 10,000 samples of each kind. Volume statistics and detection counts cover the complete session.
 - **Restore defaults** creates an unsaved draft. Stop the bot and save to apply it.
@@ -113,7 +119,7 @@ You can still run `python3 main.py` for a terminal-only session using the same s
 
 ### Log a catch
 
-Each saved fish row has **Edit** and **Remove** buttons. **Edit** opens that row in place to change its fish name, total amount, or Stacks flag. **Save row** updates the all-session rates, while **Cancel** discards the draft. Rows that match the same fish and Stacks flag are combined. A session's location, duration, and creation date cannot be edited. **Remove** asks for confirmation before removing a fish row. **Delete session** asks for confirmation before permanently removing the entire session and its catches. After a successful **Log a catch**, the fish name clears, the amount resets to 1, and **Stacks** resets to checked. Failed saves keep the inputs so you can retry.
+Each saved fish row has **Edit** and **Remove** buttons. **Edit** opens that row in place to change its fish name, total amount, or Stacks flag. **Save row** updates the location rates, while **Cancel** discards the draft. Rows that match the same fish and Stacks flag are combined. A session's location, duration, and creation date cannot be edited. **Remove** asks for confirmation before removing a fish row. **Delete session** asks for confirmation before permanently removing the entire session and its catches. After a successful **Log a catch**, the fish name clears, the amount resets to 1, and **Stacks** resets to checked. Failed saves keep the inputs so you can retry.
 
 Open **Log a catch** from the sidebar or expand its panel beneath Tackle & settings. After fishing, enter your location and session duration in whole seconds, then click **Create session log**. The creation date is recorded automatically. These are manual logs, independent of starting or stopping the bot.
 
@@ -132,9 +138,9 @@ Select a saved log to view its location, creation date, duration, fish counts, a
 
 All logs are stored as an expandable JSON array in `catches.json`, beside `config.json`. In Docker this is `/data/catches.json` in the persistent volume. Native runs use the repository folder unless `FISHING_DATA_DIR` is set. Writes replace the file atomically. Logs and fish names survive controller restarts. Dates are stored in UTC and displayed in your browser's local time. Reopen the panel to refresh logs added from another browser.
 
-The **Catch rates** tab in **Log a catch** shows the combined fish per hour, total catches, total hours, and a per-fish table across every saved session. Each rate is `total fish * 3600 / total session seconds`, including time from sessions with no catches of that fish. Longer sessions contribute proportionally. Rates are calculated from saved logs and are not stored separately. With no recorded time, rates show **Not available**. Logs with catches but zero duration are flagged because they can overstate rates. Switch back to **Session logs** to view or add entries.
+The **Catch rates** tab in **Log a catch** has a **Location** dropdown populated from saved logs. It shows fish per hour, stacks per hour, total catches, total hours, and a per-fish table using only sessions at the selected location. Location names match exactly as saved. The initial selection is the newest log's location, and refreshes keep your selection while that location still has logs. Each rate is `total fish * 3600 / total session seconds`, including time from sessions at that location with no catches of that fish. Longer sessions contribute proportionally. Rates are calculated from saved logs and are not stored separately. With no recorded time, rates show **Not available**. Logs with catches but zero duration are flagged because they can overstate rates. Switch back to **Session logs** to view or add entries.
 
-**Stacks/hour** uses 20 fish per stack for lines with **Stacks** checked, with each species rounded up separately after combining its stacking catches across all sessions. Non-stacking catches each occupy one slot. For example, 23 stacking fish A and 50 stacking fish B occupy 2 + 3 = 5 stacks. Three non-stacking fish add another 3 slots. Divide that total by total recorded hours for the rate. Hover, focus, or tap the stat to see full, partial, and non-stacking counts. Press Escape or move focus away to dismiss the breakdown. Older entries without a `stacks` flag default to stacking and do not need migration.
+**Stacks/hour** uses 20 fish per stack for lines with **Stacks** checked, with each species rounded up separately after combining its stacking catches across sessions at the selected location. Non-stacking catches each occupy one slot. For example, 23 stacking fish A and 50 stacking fish B occupy 2 + 3 = 5 stacks. Three non-stacking fish add another 3 slots. Divide that total by recorded hours at the selected location for the rate. Hover, focus, or tap the stat to see full, partial, and non-stacking counts. Press Escape or move focus away to dismiss the breakdown. Older entries without a `stacks` flag default to stacking and do not need migration.
 
 ## Timing semantics
 
@@ -157,6 +163,7 @@ python -m pip install numpy scipy
 python webui.py
 python -m unittest discover -s tests -v
 node --check web/app.js
+node --test tests/*.test.cjs
 ```
 
 Tests use fake hardware and cover cleanup, interruptible waits, the preserved timing checks, numerical probabilities, persistence, request protection, and session lifecycle. They do not certify physical servo calibration or audio detection on the Pi.

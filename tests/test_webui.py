@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 import tempfile
 import threading
@@ -11,7 +12,8 @@ from urllib.request import Request, urlopen
 
 from configuration import DEFAULTS, load_config, validate
 from normal_distribution import for_config, preview
-from webui import Controller, Handler, Server
+from webui import Conflict, Controller, Handler, Server
+import webui
 
 
 class ConfigAndMathTests(unittest.TestCase):
@@ -58,9 +60,10 @@ class ServerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.calls = []
-        def runner(config, stop_event, log, on_ready):
+        def runner(config, stop_event, log, on_ready, on_stage):
             self.calls.append(config)
             on_ready()
+            on_stage('listening', config['LAST_CAST_MAX'])
             log('Test runner is ready')
             stop_event.wait(3)
             log('Test runner cleaned up')
@@ -89,6 +92,94 @@ class ServerTests(unittest.TestCase):
         with response:
             raw = response.read()
             return response.status, json.loads(raw) if response.headers.get_content_type() == 'application/json' else raw
+
+    def test_microphone_restart_protection_and_active_session_conflict(self):
+        for headers in ({'X-Control-Token': 'wrong'}, {'Origin': 'http://foreign.example'},
+                        {'Host': 'foreign.example'}):
+            self.assertEqual(self.request('/api/reconnect-microphone', {}, headers)[0], 403)
+        self.controller.start()
+        self.assertEqual(self.request('/api/reconnect-microphone', {})[0], 409)
+        self.assertFalse(self.server.restart_requested)
+        self.assertFalse(self.controller.closing)
+
+    def test_microphone_restart_preserves_data_and_blocks_new_work(self):
+        self.controller.save(dict(DEFAULTS, RATE=48000))
+        self.controller.create_catch_log(3600, 'Stormwind')
+        self.controller.add_catch(0, 'Catfish', 2)
+        config = self.controller.config_path.read_bytes()
+        catches = self.controller.catches_path.read_bytes()
+        self.controller.status, self.controller.error = 'Error', 'Invalid input device'
+        status, state = self.request('/api/reconnect-microphone', {})
+        self.assertEqual(status, 202)
+        self.assertEqual(state['status'], 'Restarting')
+        self.assertFalse(state['active'])
+        self.assertTrue(self.server.restart_requested)
+        self.thread.join(timeout=2)
+        self.assertFalse(self.thread.is_alive())
+        with self.assertRaises(Conflict):
+            self.controller.start()
+        with self.assertRaises(Conflict):
+            self.controller.save(DEFAULTS)
+        with self.assertRaises(Conflict):
+            self.controller.create_catch_log(1, 'Stormwind')
+        with self.assertRaises(Conflict):
+            self.server.request_restart()
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.controller.config_path.read_bytes(), config)
+        self.assertEqual(self.controller.catches_path.read_bytes(), catches)
+
+    def test_microphone_check_uses_saved_settings_and_closes_on_success_or_failure(self):
+        self.controller.config.update(RATE=48000, CHANNELS=1)
+        for failure in (None, 'open', 'read', 'short', 'close'):
+            with self.subTest(failure=failure):
+                module = Mock(paInt16=8)
+                audio = module.PyAudio.return_value
+                stream = audio.open.return_value
+                audio.get_default_input_device_info.return_value = {'name': 'USB test mic'}
+                stream.read.return_value = b'\0' * (1 if failure == 'short' else 2048)
+                if failure == 'open':
+                    audio.open.side_effect = OSError('unavailable')
+                if failure == 'read':
+                    stream.read.side_effect = OSError('read failed')
+                if failure == 'close':
+                    stream.close.side_effect = OSError('close failed')
+                with patch.dict(sys.modules, pyaudio=module):
+                    if failure:
+                        with self.assertRaises(OSError):
+                            self.controller.check_microphone()
+                    else:
+                        self.controller.check_microphone()
+                        self.assertIn('USB test mic at 48000 Hz', self.controller.microphone)
+                audio.open.assert_called_once_with(format=8, channels=1, rate=48000,
+                                                   input=True, frames_per_buffer=1024)
+                audio.terminate.assert_called_once()
+                if failure != 'open':
+                    stream.close.assert_called_once()
+                self.assertEqual(self.calls, [])
+                self.assertFalse(self.controller.active())
+
+    def test_process_restart_preserves_arguments_and_checks_audio_without_starting(self):
+        arguments = ['webui.py', '--port', '9876', '--allow-network', '192.168.1.0/24']
+        for checking in (False, True):
+            with self.subTest(checking=checking):
+                argv = arguments + (['--check-microphone'] if checking else [])
+                controller = Mock()
+                server = Mock(restart_requested=True, server_address=('0.0.0.0', 9876), server_port=9876)
+                controller.check_microphone.side_effect = OSError('USB mic missing')
+                with patch.object(sys, 'argv', argv), patch('webui.Controller', return_value=controller), \
+                     patch('webui.Server', return_value=server), patch('webui.signal.signal'), \
+                     patch('webui.os.execv') as execute:
+                    webui.main()
+                execute.assert_called_once_with(sys.executable,
+                    [sys.executable, *arguments, '--check-microphone'])
+                controller.start.assert_not_called()
+                controller.close.assert_called_once()
+                server.server_close.assert_called_once()
+                if checking:
+                    self.assertEqual(controller.status, 'Error')
+                    self.assertIn('USB mic missing', controller.error)
+                else:
+                    controller.check_microphone.assert_not_called()
 
     def test_http_config_start_singleton_stop_and_restart(self):
         status, boot = self.request('/api/bootstrap')
@@ -123,7 +214,7 @@ class ServerTests(unittest.TestCase):
 
     def test_manual_catch_logs_persist_names_counts_location_and_date(self):
         self.assertEqual(self.request('/api/catches')[1], {
-            'sessions': [], 'fishNames': [], 'rates': {
+            'sessions': [], 'fishNames': [], 'ratesByLocation': {}, 'rates': {
                 'seconds': 0, 'amount': 0, 'perHour': None, 'catches': [], 'stacks': 0, 'stacksPerHour': None}})
         status, data = self.request('/api/catches/new', {'sessionLength': 7200, 'location': ' Stormwind '})
         self.assertEqual(status, 200)
@@ -312,6 +403,38 @@ class ServerTests(unittest.TestCase):
         restored = Controller(self.controller.config_path, log_sink=lambda _: None)
         self.assertEqual(restored.catch_log()['rates'], self.controller.catch_log()['rates'])
 
+    def test_location_rates_use_only_matching_logs_and_refresh_after_changes(self):
+        for duration, location in [(3600, 'Stormwind'), (7200, 'Stormwind'),
+                                   (3600, 'Stormwind'), (3600, 'Goldshire'), (0, 'Booty Bay')]:
+            self.controller.create_catch_log(duration, location)
+        self.controller.add_catch(0, 'Catfish', 19)
+        self.controller.add_catch(1, 'Catfish', 2)
+        self.controller.add_catch(1, 'Smallfish', 3, stacks=False)
+        self.controller.add_catch(3, 'Catfish', 100)
+        self.controller.add_catch(3, 'Other fish', 40)
+        self.controller.add_catch(4, 'Zero-time fish', 10)
+        before = self.controller.catches_path.read_bytes()
+        data = self.request('/api/catches')[1]
+        self.assertEqual(data['ratesByLocation']['Stormwind'], {
+            'seconds': 14400, 'amount': 24, 'perHour': 6, 'stacks': 5, 'stacksPerHour': 1.25,
+            'catches': [{'fish': 'Catfish', 'amount': 21, 'nonStackingAmount': 0, 'stacks': 2, 'perHour': 5.25},
+                        {'fish': 'Smallfish', 'amount': 3, 'nonStackingAmount': 3, 'stacks': 3, 'perHour': .75}]})
+        self.assertEqual(data['ratesByLocation']['Goldshire']['perHour'], 140)
+        self.assertEqual(data['ratesByLocation']['Goldshire']['stacksPerHour'], 7)
+        self.assertIsNone(data['ratesByLocation']['Booty Bay']['perHour'])
+        self.assertIsNone(data['ratesByLocation']['Booty Bay']['stacksPerHour'])
+        self.assertEqual(self.controller.catches_path.read_bytes(), before)
+        restored = Controller(self.controller.config_path, log_sink=lambda _: None)
+        self.assertEqual(restored.catch_log()['ratesByLocation'], data['ratesByLocation'])
+
+        session = data['sessions'][0]
+        changed = self.controller.edit_catch(0, session['date'], 0, session['catches'][0], 'Catfish', 39)
+        self.assertEqual(changed['ratesByLocation']['Stormwind']['stacksPerHour'], 1.5)
+        self.assertEqual(changed['ratesByLocation']['Goldshire'], data['ratesByLocation']['Goldshire'])
+        deleted = self.controller.delete_catch_log(3, data['sessions'][3]['date'])
+        self.assertNotIn('Goldshire', deleted['ratesByLocation'])
+        self.assertEqual(deleted['ratesByLocation']['Stormwind'], changed['ratesByLocation']['Stormwind'])
+
     def test_catch_rates_with_no_catches_or_no_duration(self):
         self.controller.create_catch_log(0, 'Stormwind')
         self.controller.add_catch(0, 'Catfish', 10)
@@ -424,10 +547,106 @@ class ServerTests(unittest.TestCase):
         self.controller.worker.join(2)
         state = self.controller.snapshot()
         self.assertEqual(state['status'], 'Error')
+        self.assertEqual(state['stage']['name'], 'error')
         self.assertIn('audio device unavailable', state['error'])
         self.assertTrue(any('Test audio device' in e['message'] for e in state['logs']))
         self.controller.start()
         self.controller.worker.join(2)
+
+    def test_stage_stream_current_state_short_transitions_and_reconnect(self):
+        def read_stage(response):
+            self.assertEqual(response.readline(), b'event: stage\n')
+            data = response.readline()
+            self.assertEqual(response.readline(), b'\n')
+            return json.loads(data.removeprefix(b'data: '))
+        with urlopen(self.base + '/api/stages', timeout=3) as response:
+            self.assertEqual(response.headers.get_content_type(), 'text/event-stream')
+            initial = read_stage(response)
+            self.assertEqual(initial['name'], 'stopped')
+            # Publish faster than the old one-second polling interval.
+            self.controller.stage_changed('casting', .2)
+            self.controller.stage_changed('listening', 59.8)
+            self.controller.stage_changed('reaction', 1.234)
+            changes = [read_stage(response) for _ in range(3)]
+            self.assertEqual([stage['name'] for stage in changes], ['casting', 'listening', 'reaction'])
+            self.assertEqual([stage['id'] for stage in changes], list(range(initial['id'] + 1, initial['id'] + 4)))
+            self.assertEqual(changes[-1]['duration'], 1.234)
+            refreshed = read_stage(response)
+            self.assertEqual(refreshed['id'], changes[-1]['id'])
+            self.assertGreater(refreshed['elapsed'], changes[-1]['elapsed'])
+        with urlopen(self.base + '/api/stages', timeout=3) as response:
+            resumed = read_stage(response)
+            self.assertEqual(resumed['name'], 'reaction')
+            self.assertGreater(resumed['elapsed'], changes[-1]['elapsed'])
+        self.assertEqual(self.request('/api/state')[1]['stage']['id'], resumed['id'])
+
+    def test_stage_snapshot_elapsed_stop_and_bounded_history(self):
+        with patch('webui.time.monotonic', return_value=100):
+            self.controller.stage_changed('idle', 12.5)
+        with patch('webui.time.monotonic', return_value=104.25):
+            stage = self.controller.snapshot()['stage']
+            self.assertEqual(stage['elapsed'], 4.25)
+            self.assertEqual(stage['duration'], 12.5)
+        for _ in range(100):
+            self.controller.stage_changed('casting', .2)
+        self.assertEqual(len(self.controller.stages), 64)
+        self.assertEqual(len(self.controller.stage_updates(0)), 1)
+        self.assertEqual(self.controller.stage_updates(0)[0]['id'], self.controller.snapshot()['stage']['id'])
+        cleanup = threading.Event()
+        reported = threading.Event()
+        def runner(stop_event, on_stage, **_):
+            on_stage('reaction', 3)
+            reported.set()
+            stop_event.wait(3)
+            on_stage('casting', .2)
+            cleanup.wait(3)
+        self.controller.runner = runner
+        self.controller.start()
+        self.assertTrue(reported.wait(2))
+        try:
+            self.assertEqual(self.controller.stop()['stage']['name'], 'stopping')
+            self.controller.stage_changed('listening', 60)
+            self.assertEqual(self.controller.snapshot()['stage']['name'], 'stopping')
+        finally:
+            cleanup.set()
+            self.controller.worker.join(2)
+        self.assertEqual(self.controller.snapshot()['stage']['name'], 'stopped')
+
+    def test_stage_stream_uses_existing_access_checks(self):
+        self.assertEqual(self.request('/api/stages', headers={'Host': 'untrusted.example'})[0], 403)
+        original_setup = Handler.setup
+        def setup(handler):
+            original_setup(handler)
+            handler.client_address = ('8.8.8.8', 12345)
+        with patch.object(Handler, 'setup', setup):
+            self.assertEqual(self.request('/api/stages')[0], 403)
+
+    def test_slow_stage_client_does_not_block_bot_notifications(self):
+        writing, release, notified = threading.Event(), threading.Event(), threading.Event()
+        handler = object.__new__(Handler)
+        handler.server = self.server
+        handler.send_response = handler.send_header = handler.end_headers = Mock()
+        handler.wfile = Mock()
+        def blocked_write(_):
+            writing.set()
+            release.wait(3)
+            raise BrokenPipeError()
+        handler.wfile.write.side_effect = blocked_write
+        client = threading.Thread(target=handler.stage_events, daemon=True)
+        def notify():
+            self.controller.stage_changed('reaction', 1.234)
+            notified.set()
+        bot = threading.Thread(target=notify, daemon=True)
+        try:
+            client.start()
+            self.assertTrue(writing.wait(2))
+            bot.start()
+            self.assertTrue(notified.wait(1), 'A browser write blocked the bot thread')
+        finally:
+            release.set()
+            client.join(2)
+            if bot.ident is not None:
+                bot.join(2)
 
     def test_bounded_log_and_shutdown(self):
         for i in range(205):

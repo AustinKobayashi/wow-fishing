@@ -27,17 +27,19 @@ async function api(path, payload) {
 }
 function controls() {
  const active = !!currentState?.active
- $('start').disabled = !connected || busy || active || dirty || !previewValid
+ const restarting = currentState?.status === 'Restarting'
+ $('start').disabled = !connected || busy || restarting || active || dirty || !previewValid
  $('stop').disabled = !connected || busy || !active || currentState.status === 'Stopping'
- $('save').disabled = !connected || busy || active || !dirty || !previewValid
- $('reset').disabled = !connected || busy || active
- document.querySelectorAll('#fields input').forEach(el => el.disabled = !connected || busy || active)
+ $('reconnectMicrophone').disabled = !connected || busy || active || restarting
+ $('save').disabled = !connected || busy || restarting || active || !dirty || !previewValid
+ $('reset').disabled = !connected || busy || restarting || active
+ document.querySelectorAll('#fields input').forEach(el => el.disabled = !connected || busy || restarting || active)
  $('configState').textContent = dirty ? 'Unsaved changes' : 'Saved settings'
- const catchDisabled = !connected || catchBusy || !!catchEditRow || !catchData?.sessions.length
+ const catchDisabled = !connected || restarting || catchBusy || !!catchEditRow || !catchData?.sessions.length
  for (const id of ['catchSession', 'fishName', 'catchAmount', 'catchStacks', 'addCatch', 'exportCatches', 'deleteCatchSession']) $(id).disabled = catchDisabled
- for (const id of ['catchLocation', 'sessionLength', 'createCatchLog']) $(id).disabled = !connected || catchBusy || !!catchEditRow
+ for (const id of ['catchLocation', 'sessionLength', 'createCatchLog']) $(id).disabled = !connected || restarting || catchBusy || !!catchEditRow
  document.querySelectorAll('.catch-row-actions button').forEach(button => button.disabled = catchDisabled)
- document.querySelectorAll('.catch-row-editor fieldset').forEach(fieldset => fieldset.disabled = !connected || catchBusy)
+ document.querySelectorAll('.catch-row-editor fieldset').forEach(fieldset => fieldset.disabled = !connected || restarting || catchBusy)
 }
 function drawCatches() {
  const session = catchData?.sessions[Number($('catchSession').value)]
@@ -93,17 +95,32 @@ function applyCatches(data) {
   $('catchSession').prepend(option)
  })
  $('catchSession').value = newSession ? String(data.sessions.length - 1) : previous
- $('fishNames').replaceChildren()
- data.fishNames.forEach(name => {
+ const locations = Object.keys(data.ratesByLocation).sort((a, b) => a.localeCompare(b))
+ for (const [id, names] of [['fishNames', data.fishNames], ['catchLocations', locations]]) {
+  $(id).replaceChildren()
+  for (const name of names) {
+   const option = document.createElement('option')
+   option.value = name
+   $(id).append(option)
+  }
+ }
+ const previousLocation = $('rateLocation').value
+ $('rateLocation').replaceChildren()
+ for (const location of locations.length ? locations : ['']) {
   const option = document.createElement('option')
-  option.value = name
-  $('fishNames').append(option)
- })
+  option.value = location
+  option.textContent = location || 'No locations yet'
+  $('rateLocation').append(option)
+ }
+ $('rateLocation').value = locations.includes(previousLocation) ? previousLocation : data.sessions.at(-1)?.location || ''
+ $('rateLocation').disabled = !locations.length
  drawCatches()
  drawCatchRates()
 }
 function drawCatchRates() {
- const {rates, sessions} = catchData
+ const location = $('rateLocation').value
+ const sessions = catchData.sessions.filter(session => session.location === location)
+ const rates = catchData.ratesByLocation[location] || catchData.rates
  const rateText = value => value === null ? 'Not available' : value.toLocaleString(undefined, {minimumFractionDigits:1, maximumFractionDigits:1})
  $('totalCatchRate').textContent = rateText(rates.perHour)
  $('totalStackRate').textContent = rateText(rates.stacksPerHour)
@@ -243,7 +260,8 @@ function applyState(state) {
  connected = true
  $('connection').textContent = 'Controller connected'
  $('notice').classList.remove('connection-error')
- $('notice').textContent = state.error ? 'Session error: ' + state.error : state.active ? 'LIVE SESSION · The bot runs on the server. Closing this page does not stop it. Use Stop fishing to end the session.' : 'LOCAL CONTROL · Save your settings, then cast a line. Starting will operate the connected servo and audio input.'
+ $('notice').textContent = state.error ? 'Controller error: ' + state.error : state.status === 'Restarting' ? 'Reconnecting the microphone. Fishing stays stopped.' : state.active ? 'LIVE SESSION · The bot runs on the server. Closing this page does not stop it. Use Stop fishing to end the session.' : 'LOCAL CONTROL · Save your settings, then cast a line. Starting will operate the connected servo and audio input.'
+ $('microphoneMessage').textContent = state.microphone || ''
  $('status').textContent = state.status
  const seconds = Math.floor(state.elapsed)
  $('elapsed').textContent = [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60].map(x => String(x).padStart(2,'0')).join(':')
@@ -283,13 +301,16 @@ async function action(path,payload) {
 }
 async function poll() {
  try {
-  applyState(await api('/api/state'))
+  const boot = await api('/api/bootstrap')
+  if (token !== boot.token) hiddenThrough = 0
+  token = boot.token
+  applyState(boot.state)
  }
  catch (error) {
   connected = false
   $('connection').textContent = 'Controller disconnected'
   $('status').textContent = 'Unknown'
-  $('notice').textContent = 'Connection lost. The bot may still be running on the server. Reconnecting...'
+  $('notice').textContent = currentState?.status === 'Restarting' ? 'Reconnecting the microphone. Fishing stays stopped.' : 'Connection lost. The bot may still be running on the server. Reconnecting...'
   $('notice').classList.add('connection-error')
   controls()
  } finally { setTimeout(poll,1000) }
@@ -355,9 +376,11 @@ $('reset').onclick = () => { fill(defaults)
 $('save').onclick = () => { try { action('/api/config',{config:readFields()}) } catch (error) { previewError(error.message) } }
 $('start').onclick = () => action('/api/start',{})
 $('stop').onclick = () => action('/api/stop',{})
+$('reconnectMicrophone').onclick = () => action('/api/reconnect-microphone',{})
 $('catchNav').onclick = () => { $('catchLog').open = true }
 $('catchLog').ontoggle = () => { if ($('catchLog').open && connected) refreshCatches() }
 $('catchSession').onchange = drawCatches
+$('rateLocation').onchange = drawCatchRates
 function catchRowEditor(entry) {
  const row = document.createElement('tr'), cell = document.createElement('td'), form = document.createElement('form')
  cell.colSpan = 4
@@ -379,6 +402,7 @@ function catchRowEditor(entry) {
   if (name === 'fish') {
    input.maxLength = 120
    input.setAttribute('list', 'fishNames')
+   input.autocomplete = 'off'
   } else {
    input.min = '1'
    input.max = '9007199254740991'
