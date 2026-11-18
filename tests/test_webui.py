@@ -60,7 +60,7 @@ class ServerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.calls = []
-        def runner(config, stop_event, log, on_ready, on_stage):
+        def runner(config, stop_event, log, on_ready, on_stage, on_pause):
             self.calls.append(config)
             on_ready()
             on_stage('listening', config['LAST_CAST_MAX'])
@@ -92,6 +92,63 @@ class ServerTests(unittest.TestCase):
         with response:
             raw = response.read()
             return response.status, json.loads(raw) if response.headers.get_content_type() == 'application/json' else raw
+
+    def test_pause_resume_keeps_session_and_timer_and_stop_ends_it(self):
+        now = [100.0]
+        resumes = []
+        def runner(on_ready, on_pause, stop_event, **_):
+            self.calls.append('started')
+            on_ready()
+            now[0] = 110.0
+            on_pause()
+            if not stop_event.is_set():
+                resumes.append(True)
+                now[0] = 1015.0
+                on_pause()
+        self.controller.runner = runner
+        with patch('webui.time.monotonic', side_effect=lambda: now[0]):
+            self.controller.start()
+            worker = self.controller.worker
+            with self.controller.stage_condition:
+                self.assertTrue(self.controller.stage_condition.wait_for(
+                    lambda: self.controller.status == 'Paused', timeout=2))
+            now[0] = 1000.0
+            state = self.request('/api/state')[1]
+            self.assertTrue(state['active'])
+            self.assertEqual(state['status'], 'Paused')
+            self.assertEqual(state['stage']['name'], 'paused')
+            self.assertEqual(state['elapsed'], 10)
+            self.assertEqual(self.request('/api/config', {'config': DEFAULTS})[0], 409)
+            self.assertEqual(self.request('/api/reconnect-microphone', {})[0], 409)
+            self.assertEqual(self.request('/api/start', {})[0], 200)
+            with self.controller.stage_condition:
+                self.assertTrue(self.controller.stage_condition.wait_for(
+                    lambda: self.controller.status == 'Paused', timeout=2))
+            self.assertIs(self.controller.worker, worker)
+            self.assertEqual(self.calls, ['started'])
+            self.assertEqual(resumes, [True])
+            now[0] = 2000.0
+            self.assertEqual(self.controller.snapshot()['elapsed'], 25)
+            self.assertEqual(self.request('/api/stop', {})[0], 200)
+            worker.join(timeout=2)
+            state = self.controller.snapshot()
+            self.assertFalse(state['active'])
+            self.assertEqual(state['status'], 'Stopped')
+            self.assertEqual(state['elapsed'], 25)
+
+    def test_shutdown_wakes_paused_session_for_cleanup(self):
+        cleaned = threading.Event()
+        def runner(on_pause, **_):
+            on_pause()
+            cleaned.set()
+        self.controller.runner = runner
+        self.controller.start()
+        with self.controller.stage_condition:
+            self.assertTrue(self.controller.stage_condition.wait_for(
+                lambda: self.controller.status == 'Paused', timeout=2))
+        self.controller.close()
+        self.assertTrue(cleaned.is_set())
+        self.assertFalse(self.controller.active())
 
     def test_microphone_restart_protection_and_active_session_conflict(self):
         for headers in ({'X-Control-Token': 'wrong'}, {'Origin': 'http://foreign.example'},

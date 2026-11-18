@@ -12,7 +12,7 @@ from servo import Servo
 
 class RuntimeTests(unittest.TestCase):
     def run_fake(self, changes=None, stop_on_delay=None, read_error=False, stages=None,
-                 stop_after_casts=2, audio_level=lambda: 8000, logs=None):
+                 stop_after_casts=2, audio_level=lambda: 8000, logs=None, pause=None):
         config = dict(DEFAULTS, REEL_TIME_DELAY_AFTER_CAST=0, IDLE_PROBABILITY=0)
         config.update(changes or {})
         now = [0.0]
@@ -52,11 +52,37 @@ class RuntimeTests(unittest.TestCase):
                     main(config, event, lambda _: None, audio_module=audio_module, servo_factory=factory, on_stage=on_stage)
             else:
                 main(config, event, logs.append if logs is not None else lambda _: None,
-                     audio_module=audio_module, servo_factory=factory, on_stage=on_stage)
+                     audio_module=audio_module, servo_factory=factory, on_stage=on_stage,
+                     on_pause=(lambda: pause(now, stopped, actions)) if pause else None)
         servo.cleanup.assert_called_once()
         stream.close.assert_called_once()
         audio.terminate.assert_called_once()
         return actions, now[0]
+
+    def test_resume_resets_guard_and_stop_while_paused_does_not_cast(self):
+        pauses, logs = [], []
+        def pause(now, stopped, actions):
+            pauses.append(actions.count('Casting'))
+            now[0] += 100
+            stopped[0] = len(pauses) == 3
+        actions, _ = self.run_fake(
+            {'LAST_CAST_MAX': 1, 'MAX_RUN_TIME': 30}, stop_after_casts=None,
+            audio_level=lambda: 0, logs=logs, pause=pause)
+        self.assertEqual(pauses, [5, 10, 15])
+        self.assertEqual(actions, ['Casting'] * 15)
+        self.assertIn('Stop requested.', logs)
+
+    def test_resume_preserves_remaining_runtime_excluding_paused_time(self):
+        pauses, logs = [], []
+        def pause(now, stopped, actions):
+            pauses.append(now[0])
+            now[0] += 100
+        _, elapsed = self.run_fake(
+            {'LAST_CAST_MAX': 1, 'MAX_RUN_TIME': 7}, stop_after_casts=None,
+            audio_level=lambda: 0, logs=logs, pause=pause)
+        self.assertEqual(len(pauses), 1)
+        self.assertAlmostEqual(elapsed, 107)
+        self.assertIn('Maximum runtime reached.', logs)
 
     def test_five_consecutive_failed_casts_stop_and_new_session_resets_count(self):
         for _ in range(2):

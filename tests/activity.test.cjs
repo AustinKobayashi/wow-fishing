@@ -69,11 +69,15 @@ test('handles branches, stop, error and untimed stages', () => {
   assert.equal(e.activityName.textContent, label)
   assert.equal(e.activityTimer.textContent, '2.0 s remaining')
  }
- for (const [name, label] of [['starting','Starting'], ['stopping','Stopping'], ['stopped','Stopped'], ['error','Session error']]) {
+ for (const [name, label] of [['starting','Starting'], ['paused','Paused'], ['stopping','Stopping'], ['stopped','Stopped'], ['error','Session error']]) {
   p.send(name, null, 0, ++id)
   assert.equal(e.activityName.textContent, label)
   assert.equal(e.activityFill.style.width, '0%')
   assert.equal(e.activityCaption.textContent, 'No active countdown')
+  if (name === 'paused') {
+   assert.equal(e.activityTimer.textContent, 'Timer paused')
+   assert.match(e.activityNext.textContent, /Cast a line to resume/)
+  }
  }
 })
 

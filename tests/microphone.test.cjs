@@ -4,7 +4,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 const {test} = require('node:test')
 
-test('microphone controls and polling survive restart without losing drafts', async () => {
+test('session controls support resume and polling survives restart without losing drafts', async () => {
  const html = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8')
  const elements = Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(([, id]) =>
   [id, {value:'', textContent:'', classList:{add() {}, remove() {}, toggle() {}}}]))
@@ -25,8 +25,28 @@ test('microphone controls and polling survive restart without losing drafts', as
   assert.equal(elements.reconnectMicrophone.disabled, true)
   assert.equal(elements.start.disabled, true)
  }
+ context.applyState({active:true, status:'Paused', error:null, elapsed:65,
+  config:{THRESHOLD:7000, DONT_REEL_TIME:2.1, MAX_RUN_TIME:3600}, logs:[]})
+ assert.equal(elements.start.disabled, false)
+ assert.equal(elements.stop.disabled, false)
+ assert.equal(elements.save.disabled, true)
+ assert.equal(elements.reset.disabled, true)
+ assert.equal(elements.reconnectMicrophone.disabled, true)
+ assert.equal(elements.elapsed.textContent, '00:01:05')
+ assert.match(elements.notice.textContent, /timer is paused/)
+ vm.runInContext('dirty = true\npreviewValid = false', context)
+ context.controls()
+ assert.equal(elements.start.disabled, false)
+ vm.runInContext('connected = false', context)
+ context.controls()
+ assert.equal(elements.start.disabled, true)
+ vm.runInContext('connected = true\ndirty = false\npreviewValid = true', context)
  let request
  context.action = (url, payload) => { request = {url, payload} }
+ elements.start.onclick()
+ assert.equal(request.url, '/api/start')
+ elements.stop.onclick()
+ assert.equal(request.url, '/api/stop')
  elements.reconnectMicrophone.onclick()
  assert.equal(request.url, '/api/reconnect-microphone')
  assert.deepEqual(Object.keys(request.payload), [])

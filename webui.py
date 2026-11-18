@@ -101,7 +101,7 @@ class Controller:
         with self.lock:
             active = self.active()
             return dict(status=self.status, active=active, error=self.error, microphone=self.microphone,
-                        elapsed=time.monotonic() - self.started if active else self.elapsed,
+                        elapsed=self.elapsed + (time.monotonic() - self.started if self.started is not None else 0),
                         config=self.config.copy(), logs=list(self.logs),
                         stage=self.stage_snapshot(self.stages[-1]))
 
@@ -260,6 +260,12 @@ class Controller:
 
     def start(self):
         with self.lock:
+            if not self.closing and self.active() and self.status == 'Paused':
+                self.started = time.monotonic()
+                self.status = 'Running'
+                self.record('Resuming fishing with the current session settings.')
+                self.stage_condition.notify_all()
+                return self.snapshot()
             if self.closing or self.active():
                 raise Conflict('A session is already active or the server is shutting down.')
             config = self.config.copy()
@@ -273,6 +279,17 @@ class Controller:
             self.worker.start()
         return self.snapshot()
 
+    def pause(self):
+        with self.stage_condition:
+            if self.stop_event.is_set() or self.closing:
+                return
+            self.elapsed += time.monotonic() - self.started
+            self.started = None
+            self.status = 'Paused'
+            self._set_stage('paused')
+            self.record('Paused after 5 consecutive failed casts. Cast a line to resume or Stop fishing to end the session.')
+            self.stage_condition.wait_for(lambda: self.status != 'Paused' or self.stop_event.is_set() or self.closing)
+
     def _run(self, config):
         def ready():
             with self.lock:
@@ -285,7 +302,7 @@ class Controller:
                 from main import main
                 runner = main
             runner(config=config, stop_event=self.stop_event, log=self.record, on_ready=ready,
-                   on_stage=self.stage_changed)
+                   on_stage=self.stage_changed, on_pause=self.pause)
             with self.lock:
                 self.status = 'Stopped'
                 self._set_stage('stopped')
@@ -297,11 +314,13 @@ class Controller:
                 self._set_stage('error')
         finally:
             with self.lock:
-                self.elapsed = time.monotonic() - self.started
+                if self.started is not None:
+                    self.elapsed += time.monotonic() - self.started
+                    self.started = None
 
     def stop(self):
         with self.lock:
-            if self.active() and self.status in ('Starting', 'Running', 'Stopping'):
+            if self.active() and self.status in ('Starting', 'Running', 'Paused', 'Stopping'):
                 self.stop_event.set()
                 self.status = 'Stopping'
                 self._set_stage('stopping')

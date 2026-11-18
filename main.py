@@ -16,7 +16,8 @@ class Stopped(Exception):
 
 
 def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
-         audio_module=None, servo_factory=Servo, on_stage=lambda name, duration: None):
+         audio_module=None, servo_factory=Servo, on_stage=lambda name, duration: None,
+         on_pause=None):
     config = validate(config) if config is not None else load_config()
     stop_event = stop_event if stop_event is not None else threading.Event()
     start = time.monotonic()
@@ -65,7 +66,13 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                 log('Did not cast, recasting...')
                 consecutive_failed_casts += 1
                 if consecutive_failed_casts >= 5:
-                    raise Stopped('Stopped after 5 consecutive failed casts.')
+                    if on_pause is None:
+                        raise Stopped('Stopped after 5 consecutive failed casts.')
+                    paused_at = time.monotonic()
+                    on_pause()
+                    deadline += time.monotonic() - paused_at
+                    wait(0)
+                    consecutive_failed_casts = 0
                 on_stage('casting', 2 * config['SERVO_SPEED'])
                 servo.press_fishing_button('Casting')
                 last_cast = time.monotonic()

@@ -9,6 +9,7 @@
  const fill = document.getElementById('activityFill')
  const stages = {
   starting:['Starting', 'Connecting audio and servo.', 'Casting'],
+  paused:['Paused', 'Five consecutive casts failed. The session timer is paused.', 'Cast a line to resume, or Stop fishing to end the session'],
   casting:['Casting', 'Pressing the fishing key, then releasing it.', 'Waiting for bite audio'],
   listening:['Waiting for bite audio', 'Listening for audio above the bite threshold.', 'Reaction delay on detection, or recast on timeout'],
   reaction:['Waiting reaction delay', 'Bite audio detected. Waiting before the reel check.', 'Press reel key, or skip if the cutoff is reached'],
@@ -44,7 +45,7 @@
    return
   }
   if (stage.duration === null) {
-   timer.textContent = stage.name === 'stopped' ? 'Ready' : stage.name === 'error' ? 'Attention needed' : 'Please wait'
+   timer.textContent = stage.name === 'paused' ? 'Timer paused' : stage.name === 'stopped' ? 'Ready' : stage.name === 'error' ? 'Attention needed' : 'Please wait'
    caption.textContent = 'No active countdown'
    fill.style.width = '0%'
    return
