@@ -9,7 +9,8 @@ class Servo:
         import pigpio
         self.pi = pigpio.pi()
         self.pulse = config['SERVO_CLICK']
-        self.hold = config['SERVO_SPEED']
+        self.return_pulse = config['SERVO_RETURN']
+        self.hold = config['SERVO_HOLD_TIME']
         self.wait = wait
         self.log = log
         if not self.pi.connected:
@@ -30,9 +31,12 @@ class Servo:
             if result < 0:
                 raise RuntimeError(f'Servo press failed: pigpio error {result}')
             self.wait(self.hold)
+            result = self.pi.set_servo_pulsewidth(SERVO_PIN, self.return_pulse)
+            if result < 0:
+                raise RuntimeError(f'Servo return failed: pigpio error {result}')
+            self.wait(self.hold)
         finally:
             self.set_neutral()
-        self.wait(self.hold)
 
     def cleanup(self):
         try:

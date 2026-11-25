@@ -5,10 +5,10 @@ let mode = 'reel', dirty = false, connected = false, busy = false, previewValid 
 let previewVersion = 0, previewTimer, hiddenThrough = 0, entries = []
 let catchData, catchBusy = false, catchEditRow = null
 const helps = {
- timing:'Minimum is enforced. Spread reference is not a ceiling. Cast mean follows each reel sample.',
+ timing:'Minimum is enforced. Spread reference is not a ceiling. Cast mean follows each reel sample. Set Fishing channel duration to match the in-game channel. Ignore audio after cast blocks bite detection for the configured delay, even when the live graph shows audio above threshold.',
  detection:'The loop also sleeps 0.01 s and reads 1024 frames. Check interval alone does not set detection latency. The audio device must support your sample rate and channel count.',
  session:'Idle duration is uniform between the bounds. Probability is evaluated once per detected event, after the reel decision.',
- servo:'Each button action holds press and release for this duration. GPIO 27 stays fixed. Zero pulse width disables pulses, rather than commanding a calibrated return position.'
+ servo:'Each action commands the press position, then the return position, for the same duration each, then disables pulses. Return pulse width is 0 to disable return movement, or 500–2500 µs for a calibrated raised position. Stopping disables pulses immediately. GPIO 27 stays fixed.'
 }
 async function api(path, payload) {
  const controller = new AbortController()

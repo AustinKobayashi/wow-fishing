@@ -52,10 +52,9 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
             wait(.1)
         wait(0)
         servo = servo_factory(config, wait, log)
-        # Preserve the existing cast timestamp and independent reel cutoff semantics.
-        last_cast = time.monotonic()
-        on_stage('casting', 2 * config['SERVO_SPEED'])
+        on_stage('casting', 2 * config['SERVO_HOLD_TIME'])
         servo.press_fishing_button('Casting')
+        last_cast = time.monotonic()
         on_ready()
         listening()
         log('Listening for a bite.')
@@ -73,7 +72,7 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                     deadline += time.monotonic() - paused_at
                     wait(0)
                     consecutive_failed_casts = 0
-                on_stage('casting', 2 * config['SERVO_SPEED'])
+                on_stage('casting', 2 * config['SERVO_HOLD_TIME'])
                 servo.press_fishing_button('Casting')
                 last_cast = time.monotonic()
                 listening()
@@ -105,13 +104,15 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                 log(f'Reel time: {reel:.6f}')
                 on_stage('reaction', reel)
                 wait(reel)
-                # Intentionally counts reel delay again, matching the existing bot.
-                if time.monotonic() - last_cast + reel < config['WOW_FISHING_TIME'] and reel < config['DONT_REEL_TIME']:
-                    on_stage('reeling', 2 * config['SERVO_SPEED'])
+                remaining = max(0, last_cast + config['WOW_FISHING_TIME'] - time.monotonic())
+                if remaining > 0 and reel < config['DONT_REEL_TIME']:
+                    on_stage('reeling', 2 * config['SERVO_HOLD_TIME'])
                     servo.press_fishing_button('Reeling')
                 else:
-                    log('Skipping reel: hard delay cutoff or fishing window reached.')
-                    remaining = max(config['WOW_FISHING_TIME'] - (time.monotonic() - last_cast), .3)
+                    if remaining == 0:
+                        log('Skipping reel: configured fishing channel duration elapsed.')
+                    else:
+                        log(f'Skipping reel: hard delay cutoff reached. Waiting {remaining:.2f} seconds for the fishing channel to end.')
                     on_stage('skipping', remaining)
                     wait(remaining)
                 if np.random.rand() < config['IDLE_PROBABILITY']:
@@ -126,7 +127,7 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                 log(f'Cast time: {cast:.6f}')
                 on_stage('castdelay', cast)
                 wait(cast)
-                on_stage('casting', 2 * config['SERVO_SPEED'])
+                on_stage('casting', 2 * config['SERVO_HOLD_TIME'])
                 servo.press_fishing_button('Casting')
                 last_cast = time.monotonic()
                 listening()

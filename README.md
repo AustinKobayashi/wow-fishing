@@ -103,6 +103,9 @@ Without `--allow-network`, the server remains loopback-only at **http://127.0.0.
 
 ## Controls
 
+- **Return pulse width** sets the raised servo position in microseconds. Set it to a calibrated value between 500 and 2500, or leave it at 0 to disable return movement and retain the original spring-return behavior. Each action commands the press position and then the return position for **Press / return duration** each, then disables pulses. Stop requests disable pulses immediately rather than completing the return. Disabling pulses does not disconnect servo power. Existing saved `SERVO_SPEED` values load as `SERVO_HOLD_TIME`, and existing settings default to no return movement until calibrated.
+- **Ignore audio after cast** blocks bite detection even if the live audio graph shows a level above threshold. Every cast measures this delay from completion of the servo action. The graph and the listening activity remain visible during this guard interval.
+- **Fishing channel duration** should match the in-game channel duration. The default is 30 seconds. Existing saved values remain unchanged, so update this field if an older configuration still uses 28 seconds. A hard-cutoff skip waits until this duration has elapsed before beginning the next cast delay. The bot estimates channel expiry from the completed cast action and cannot observe the in-game cast bar.
 - Edit settings, inspect the updated graph, then **Save settings**. Settings are validated and atomically saved to ignored `config.json`. Graph edits are drafts until saved. Top summary cards show saved settings.
 - **Cast a line** starts one hardware session with the saved values. No GPIO or audio connection is made just by opening the server or page.
 - **Stop fishing** interrupts waits and disables servo pulses during cleanup. Another session cannot start until the worker exits. Native device initialization or reads must return before cleanup can finish, so a stuck driver can leave the status at Stopping.
@@ -147,7 +150,7 @@ The **Catch rates** tab in **Log a catch** has a **Location** dropdown populated
 
 The UI and runtime share `normal_distribution.py`. Samples follow a normal distribution truncated below the minimum, with no upper cap. The spread reference and tail parameter set sigma. Direct SciPy truncated-normal sampling replaces the old recursive rejection while preserving its distribution.
 
-The independent `DONT_REEL_TIME` cutoff and existing fishing-window check are preserved. The runtime waits R, then checks elapsed + R against the fishing window. For detection age A and negligible overhead, the combined delay threshold is `min(DONT_REEL_TIME, (WOW_FISHING_TIME - A) / 2)`.
+The independent `DONT_REEL_TIME` cutoff limits the sampled reaction delay. After waiting that delay, the runtime checks the actual elapsed time against the configured fishing channel duration. For detection age A and negligible overhead, the combined delay threshold is `min(DONT_REEL_TIME, WOW_FISHING_TIME - A)`. A skipped reel waits out any remaining channel time before the normal idle and cast delays. Logs distinguish an elapsed channel duration from a hard reaction-delay cutoff.
 
 Defaults predict approximately **4.08945% cutoff skips per eligible detected event**, not per cast and not a catch-failure rate. Actual detection ages and processing overhead affect the window check. The scenario warns when the post-cast guard or recast timeout prevents the hypothetical event.
 

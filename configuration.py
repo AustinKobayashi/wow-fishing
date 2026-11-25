@@ -25,7 +25,7 @@ SCHEMA = {'timing': [['REEL_TIME_MIN', 'Reel minimum', 's', 0.985, 0.001, 20, 0.
              1e-10,
              0.9,
              'any'],
-            ['WOW_FISHING_TIME', 'Fishing window', 's', 28, 1, 120, 0.1],
+            ['WOW_FISHING_TIME', 'Fishing channel duration', 's', 30, 1, 120, 0.1],
             ['REEL_TIME_DELAY_AFTER_CAST', 'Ignore audio after cast', 's', 1.5, 0, 60, 0.1]],
  'detection': [['THRESHOLD', 'Audio threshold', 'amplitude', 7000, 0, 32768, 1],
                ['CHECK_INTERVAL', 'Check interval', 's', 0.01, 0.001, 5, 0.001],
@@ -43,7 +43,8 @@ SCHEMA = {'timing': [['REEL_TIME_MIN', 'Reel minimum', 's', 0.985, 0.001, 20, 0.
               1,
               'any']],
  'servo': [['SERVO_CLICK', 'Press pulse width', 'µs', 945, 500, 2500, 1],
-           ['SERVO_SPEED', 'Press / release hold', 's', 0.1, 0.01, 2, 0.01]]}
+           ['SERVO_RETURN', 'Return pulse width', 'µs', 0, 0, 2500, 1],
+           ['SERVO_HOLD_TIME', 'Press / return duration', 's', 0.1, 0.01, 2, 0.01]]}
 DEFAULTS = {row[0]: row[3] for rows in SCHEMA.values() for row in rows}
 DATA_DIR = Path(os.environ.get('FISHING_DATA_DIR', Path(__file__).resolve().parent))
 CONFIG_PATH = DATA_DIR / 'config.json'
@@ -61,7 +62,9 @@ def validate(values):
                 raise ValueError(f'{label} must be a number.')
             if not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f'{label} must be between {low} and {high}.')
-            if key in {'RATE', 'CHANNELS', 'THRESHOLD'}:
+            if key == 'SERVO_RETURN' and value != 0 and not 500 <= value <= 2500:
+                raise ValueError('Return pulse width must be 0 (disabled) or between 500 and 2500 µs.')
+            if key in {'RATE', 'CHANNELS', 'THRESHOLD', 'SERVO_RETURN'}:
                 if value != int(value):
                     raise ValueError(f'{label} must be a whole number.')
                 value = int(value)
@@ -84,7 +87,12 @@ def load_config(path=CONFIG_PATH):
     path = Path(path)
     if not path.exists():
         return DEFAULTS.copy()
-    return validate(json.loads(path.read_text(encoding='utf-8')))
+    values = json.loads(path.read_text(encoding='utf-8'))
+    if isinstance(values, dict):
+        if 'SERVO_SPEED' in values and 'SERVO_HOLD_TIME' not in values:
+            values['SERVO_HOLD_TIME'] = values.pop('SERVO_SPEED')
+        values.setdefault('SERVO_RETURN', 0)
+    return validate(values)
 
 
 def save_config(values, path=CONFIG_PATH):

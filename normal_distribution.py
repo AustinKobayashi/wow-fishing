@@ -52,7 +52,7 @@ def preview(config, mode, scenario):
     xs = np.linspace(minimum, right, 321)
     if mode == 'reel' and minimum < cutoff < right:
         xs = np.sort(np.append(xs, cutoff))
-    effective = min(cutoff, (config['WOW_FISHING_TIME'] - scenario) / 2)
+    effective = min(cutoff, config['WOW_FISHING_TIME'] - scenario)
     return dict(mode=mode, scenario=scenario, minimum=minimum, mu=mu, sigma=sigma,
                 mean=float(model.mean()), cutoff=cutoff,
                 xmin=max(0, minimum - (right - minimum) * .08), xmax=right,

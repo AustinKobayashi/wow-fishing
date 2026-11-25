@@ -17,6 +17,27 @@ import webui
 
 
 class ConfigAndMathTests(unittest.TestCase):
+    def test_return_pulse_validation(self):
+        for value in (0, 500, 1500, 2500):
+            self.assertEqual(validate(dict(DEFAULTS, SERVO_RETURN=value))['SERVO_RETURN'], value)
+        for value in (-1, 1, 499, 500.5, 2501, True, '1500', float('nan')):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                validate(dict(DEFAULTS, SERVO_RETURN=value))
+
+    def test_old_saved_settings_load_without_changing_calibration(self):
+        old = dict(DEFAULTS, SERVO_CLICK=1870, WOW_FISHING_TIME=28)
+        old['SERVO_SPEED'] = old.pop('SERVO_HOLD_TIME')
+        del old['SERVO_RETURN']
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'config.json'
+            path.write_text(json.dumps(old), encoding='utf-8')
+            self.assertEqual(load_config(path), dict(DEFAULTS, SERVO_CLICK=1870, WOW_FISHING_TIME=28))
+            self.assertEqual(json.loads(path.read_text(encoding='utf-8')), old)
+            del old['THRESHOLD']
+            path.write_text(json.dumps(old), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                load_config(path)
+
     def test_invalid_numbers_and_unknown_fields(self):
         for value in (True, '7000', float('nan'), float('inf'), -1):
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -33,8 +54,12 @@ class ConfigAndMathTests(unittest.TestCase):
     def test_cutoff_and_window_probabilities(self):
         data = preview(DEFAULTS, 'reel', 25)
         self.assertAlmostEqual(data['cutoff_skip'], .040894501238410166, places=10)
-        self.assertAlmostEqual(data['combined_skip'], .4150702510562751, places=10)
-        self.assertEqual(data['effective_limit'], 1.5)
+        self.assertEqual(data['combined_skip'], data['cutoff_skip'])
+        self.assertEqual(data['effective_limit'], DEFAULTS['DONT_REEL_TIME'])
+        late = preview(DEFAULTS, 'reel', 28.5)
+        self.assertAlmostEqual(late['combined_skip'], .4150702510562751, places=10)
+        self.assertEqual(late['effective_limit'], 1.5)
+        self.assertEqual(preview(DEFAULTS, 'reel', 30)['combined_skip'], 1)
         self.assertTrue(any(x == DEFAULTS['DONT_REEL_TIME'] for x, _ in data['points']))
         self.assertEqual(preview(dict(DEFAULTS, DONT_REEL_TIME=.5), 'reel', 10)['cutoff_skip'], 1)
         self.assertTrue(preview(DEFAULTS, 'reel', 1.5)['guard_blocks'])
@@ -243,13 +268,16 @@ class ServerTests(unittest.TestCase):
         status, boot = self.request('/api/bootstrap')
         self.assertEqual(status, 200)
         self.assertEqual(boot['state']['status'], 'Stopped')
-        changed = dict(DEFAULTS, SERVO_CLICK=1000, THRESHOLD=9000)
+        changed = dict(DEFAULTS, SERVO_CLICK=1000, SERVO_RETURN=1500,
+                       SERVO_HOLD_TIME=.2, THRESHOLD=9000)
         self.assertEqual(self.request('/api/config', {'config': changed})[0], 200)
         self.assertEqual(load_config(self.controller.config_path), changed)
         self.assertEqual(self.request('/api/start', {})[0], 200)
         self.assertEqual(self.request('/api/start', {})[0], 409)
         self.assertEqual(self.request('/api/config', {'config': DEFAULTS})[0], 409)
         self.assertEqual(self.calls[0]['SERVO_CLICK'], 1000)
+        self.assertEqual(self.calls[0]['SERVO_RETURN'], 1500)
+        self.assertEqual(self.calls[0]['SERVO_HOLD_TIME'], .2)
         self.assertFalse(self.controller.worker.daemon)
         self.assertEqual(self.request('/api/stop', {})[0], 200)
         self.controller.worker.join(2)

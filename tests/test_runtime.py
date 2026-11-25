@@ -1,8 +1,9 @@
 import sys
 import threading
+import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import numpy as np
 from configuration import DEFAULTS
@@ -40,8 +41,8 @@ class RuntimeTests(unittest.TestCase):
             def press(action):
                 runtime_wait(0)
                 actions.append(action)
-                runtime_wait(config['SERVO_SPEED'])
-                runtime_wait(config['SERVO_SPEED'])
+                runtime_wait(config['SERVO_HOLD_TIME'])
+                runtime_wait(config['SERVO_HOLD_TIME'])
                 if stop_after_casts is not None and actions.count('Casting') >= stop_after_casts:
                     stopped[0] = True
             servo.press_fishing_button.side_effect = press
@@ -69,6 +70,47 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(actual, expected)
                 self.assertTrue(levels)
                 self.assertEqual(set(levels), {abs(sample)})
+
+    def test_cast_guard_ignores_splashes_on_first_cast_and_timeout_recasts(self):
+        for report_audio in (False, True):
+            with self.subTest(report_audio=report_audio):
+                stages, levels, logs = [], [], []
+                def splash():
+                    cast = [stage for stage in stages if stage[0] == 'casting'][-1]
+                    return 8000 if time.monotonic() - cast[2] < 1 else 0
+                actions, _ = self.run_fake(
+                    {'REEL_TIME_DELAY_AFTER_CAST': 1.5, 'LAST_CAST_MAX': 3},
+                    stop_after_casts=3, audio_level=splash, stages=stages, logs=logs,
+                    levels=levels if report_audio else None)
+                self.assertEqual(actions, ['Casting'] * 3)
+                self.assertFalse(any(stage[0] == 'reaction' for stage in stages))
+                self.assertFalse(any(line.startswith('Audio level above threshold:') for line in logs))
+                if report_audio:
+                    self.assertIn(8000, levels)
+                    self.assertIn(0, levels)
+
+    def test_cast_guard_accepts_audio_only_after_delay_with_graph_enabled(self):
+        stages, levels = [], []
+        actions, _ = self.run_fake(
+            {'REEL_TIME_DELAY_AFTER_CAST': 1.5}, stop_after_casts=3,
+            stages=stages, levels=levels)
+        casts = [stage for stage in stages if stage[0] == 'casting']
+        reactions = [stage for stage in stages if stage[0] == 'reaction']
+        self.assertEqual(actions, ['Casting', 'Reeling', 'Casting', 'Reeling', 'Casting'])
+        self.assertEqual(len(reactions), 2)
+        for index, reaction in enumerate(reactions):
+            cast_timestamp = casts[index][2] + casts[index][1]
+            self.assertGreater(reaction[2] - cast_timestamp, 1.5)
+            self.assertLessEqual(reaction[2] - cast_timestamp, 1.53)
+        self.assertGreater(len(levels), 2)
+
+    def test_first_cast_guard_starts_after_servo_action_finishes(self):
+        stages = []
+        self.run_fake({'REEL_TIME_DELAY_AFTER_CAST': 1, 'SERVO_HOLD_TIME': .75},
+                      stages=stages, levels=[])
+        reaction = next(stage for stage in stages if stage[0] == 'reaction')
+        self.assertGreater(reaction[2], 2.5)
+        self.assertLessEqual(reaction[2], 2.53)
 
     def test_resume_resets_guard_and_stop_while_paused_does_not_cast(self):
         pauses, logs = [], []
@@ -127,10 +169,35 @@ class RuntimeTests(unittest.TestCase):
         actions, _ = self.run_fake({'IDLE_PROBABILITY':1}, stop_on_delay=lambda d: d >= 10)
         self.assertEqual(actions, ['Casting','Reeling'])
 
-    def test_hard_cutoff_and_existing_double_delay_rule(self):
+    def test_hard_cutoff_and_elapsed_channel_duration(self):
         self.assertNotIn('Reeling', self.run_fake({'DONT_REEL_TIME':1.2})[0])
-        self.assertNotIn('Reeling', self.run_fake({'WOW_FISHING_TIME':2})[0])
-        self.assertIn('Reeling', self.run_fake({'WOW_FISHING_TIME':4})[0])
+        self.assertNotIn('Reeling', self.run_fake({'WOW_FISHING_TIME':1})[0])
+        self.assertIn('Reeling', self.run_fake({'WOW_FISHING_TIME':2})[0])
+
+    def test_late_bite_does_not_count_reaction_delay_twice(self):
+        actions, _ = self.run_fake({'WOW_FISHING_TIME': 28},
+                                   audio_level=lambda: 8000 if time.monotonic() >= 26 else 0)
+        self.assertEqual(actions, ['Casting', 'Reeling', 'Casting'])
+
+    def test_hard_cutoff_waits_out_channel_before_cast_delay(self):
+        stages, logs = [], []
+        actions, _ = self.run_fake({'DONT_REEL_TIME': 1.2}, stages=stages, logs=logs,
+                                   stop_after_casts=3)
+        self.assertEqual(actions, ['Casting'] * 3)
+        casts = [stage for stage in stages if stage[0] == 'casting']
+        delays = [stage for stage in stages if stage[0] == 'castdelay']
+        for cast, delay in zip(casts, delays):
+            self.assertAlmostEqual(delay[2], cast[2] + cast[1] + 30)
+        self.assertEqual(sum(line.startswith('Skipping reel: hard delay cutoff reached.') for line in logs), 2)
+        actions, _ = self.run_fake({'DONT_REEL_TIME': 1.2}, stop_on_delay=lambda d: d > 5)
+        self.assertEqual(actions, ['Casting'])
+
+    def test_expired_channel_has_separate_reason_and_no_remaining_wait(self):
+        stages, logs = [], []
+        self.run_fake(audio_level=lambda: 8000 if time.monotonic() >= 29.5 else 0,
+                      stages=stages, logs=logs)
+        self.assertIn('Skipping reel: configured fishing channel duration elapsed.', logs)
+        self.assertEqual(next(stage[1] for stage in stages if stage[0] == 'skipping'), 0)
 
     def test_deadline_interrupts_delay(self):
         actions, elapsed = self.run_fake({'MAX_RUN_TIME':1})
@@ -153,20 +220,49 @@ class RuntimeTests(unittest.TestCase):
             if duration:
                 raise Stopped('Stop requested')
         with patch.dict(sys.modules, {'pigpio': SimpleNamespace(pi=lambda:pi)}):
-            servo = Servo(DEFAULTS, wait, lambda _:None)
+            servo = Servo(dict(DEFAULTS, SERVO_RETURN=1500), wait, lambda _:None)
             with self.assertRaises(Stopped):
                 servo.press_fishing_button('Casting')
             self.assertEqual(pi.set_servo_pulsewidth.call_args.args,(27,0))
             servo.cleanup()
             pi.stop.assert_called_once()
 
+    def test_servo_press_returns_then_disables_pulses(self):
+        for return_pulse in (0, 1500):
+            with self.subTest(return_pulse=return_pulse):
+                pi = Mock(connected=True)
+                pi.set_servo_pulsewidth.return_value = 0
+                events = Mock()
+                events.attach_mock(pi.set_servo_pulsewidth, 'pulse')
+                with patch.dict(sys.modules, {'pigpio': SimpleNamespace(pi=lambda: pi)}):
+                    servo = Servo(dict(DEFAULTS, SERVO_RETURN=return_pulse), events.wait, lambda _: None)
+                    servo.press_fishing_button('Casting')
+                self.assertEqual(events.mock_calls, [
+                    call.wait(0), call.pulse(27, DEFAULTS['SERVO_CLICK']), call.wait(.1),
+                    call.pulse(27, return_pulse), call.wait(.1), call.pulse(27, 0)])
+
+    def test_servo_return_interruption_or_failure_disables_pulses(self):
+        for failure in ('stop', 'error_code', 'exception'):
+            with self.subTest(failure=failure):
+                pi = Mock(connected=True)
+                pi.set_servo_pulsewidth.side_effect = [
+                    0, RuntimeError('Connection lost') if failure == 'exception' else
+                    -1 if failure == 'error_code' else 0, 0]
+                wait = Mock(side_effect=[None, None, Stopped('Stop requested')])
+                with patch.dict(sys.modules, {'pigpio': SimpleNamespace(pi=lambda: pi)}):
+                    servo = Servo(dict(DEFAULTS, SERVO_RETURN=1500), wait, lambda _: None)
+                    with self.assertRaises(Stopped if failure == 'stop' else RuntimeError):
+                        servo.press_fishing_button('Casting')
+                self.assertEqual(pi.set_servo_pulsewidth.call_args_list,
+                                 [call(27, DEFAULTS['SERVO_CLICK']), call(27, 1500), call(27, 0)])
+
     def test_stages_follow_actions_and_actual_sampled_waits(self):
         stages = []
-        self.run_fake({'SERVO_SPEED': .25}, stages=stages)
+        self.run_fake({'SERVO_HOLD_TIME': .25}, stages=stages)
         self.assertEqual([name for name, _, _ in stages],
                          ['casting', 'listening', 'reaction', 'reeling', 'castdelay', 'casting', 'listening', 'stopping'])
         self.assertEqual(stages[0][:2], ('casting', .5))
-        self.assertEqual(stages[1][:2], ('listening', DEFAULTS['LAST_CAST_MAX'] - .5))
+        self.assertEqual(stages[1][:2], ('listening', DEFAULTS['LAST_CAST_MAX']))
         self.assertEqual(stages[2][:2], ('reaction', 1.2))
         self.assertEqual(stages[3][:2], ('reeling', .5))
         self.assertEqual(stages[4][:2], ('castdelay', 1.2))
@@ -180,11 +276,11 @@ class RuntimeTests(unittest.TestCase):
         names = [name for name, _, _ in stages]
         self.assertEqual(names[2:6], ['reaction', 'skipping', 'idle', 'castdelay'])
         skipped = stages[3]
-        self.assertAlmostEqual(skipped[1], DEFAULTS['WOW_FISHING_TIME'] - skipped[2])
+        self.assertAlmostEqual(skipped[1], .2 + DEFAULTS['WOW_FISHING_TIME'] - skipped[2])
         self.assertEqual(stages[4][1], 10)
         stages.clear()
         self.run_fake({'DONT_REEL_TIME': 1.2, 'WOW_FISHING_TIME': 1}, stages=stages)
-        self.assertEqual(next(duration for name, duration, _ in stages if name == 'skipping'), .3)
+        self.assertEqual(next(duration for name, duration, _ in stages if name == 'skipping'), 0)
         stages.clear()
         self.run_fake({'THRESHOLD': 10000, 'LAST_CAST_MAX': 1}, stages=stages)
         self.assertEqual([name for name, _, _ in stages], ['casting', 'listening', 'casting', 'listening', 'stopping'])
