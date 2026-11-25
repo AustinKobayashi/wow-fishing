@@ -60,10 +60,11 @@ class ServerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.calls = []
-        def runner(config, stop_event, log, on_ready, on_stage, on_pause):
+        def runner(config, stop_event, log, on_ready, on_stage, on_pause, on_audio):
             self.calls.append(config)
             on_ready()
             on_stage('listening', config['LAST_CAST_MAX'])
+            on_audio(1234)
             log('Test runner is ready')
             stop_event.wait(3)
             log('Test runner cleaned up')
@@ -668,6 +669,48 @@ class ServerTests(unittest.TestCase):
             cleanup.set()
             self.controller.worker.join(2)
         self.assertEqual(self.controller.snapshot()['stage']['name'], 'stopped')
+
+    def test_audio_snapshot_age_threshold_and_stop_guard(self):
+        self.assertIsNone(self.controller.snapshot()['stage']['audio'])
+        with patch('webui.time.monotonic', return_value=100):
+            self.controller.audio_changed(8000)
+        with patch('webui.time.monotonic', return_value=100.25):
+            stage = self.controller.snapshot()['stage']
+            self.assertEqual(stage['threshold'], DEFAULTS['THRESHOLD'])
+            self.assertEqual(stage['audio'], dict(level=8000, sampled=100, age=.25))
+            self.controller.stop_event.set()
+            self.controller.audio_changed(2000)
+            self.assertEqual(self.controller.snapshot()['stage']['audio'], stage['audio'])
+
+    def test_audio_stream_refreshes_while_listening_and_resets_for_a_new_session(self):
+        self.controller.audio_changed(30000)
+        self.controller.start()
+        with urlopen(self.base + '/api/stages', timeout=3) as response:
+            readings = []
+            started = time.monotonic()
+            while len(readings) < 3:
+                self.assertEqual(response.readline(), b'event: stage\n')
+                stage = json.loads(response.readline().removeprefix(b'data: '))
+                self.assertEqual(response.readline(), b'\n')
+                self.assertNotEqual((stage['audio'] or {}).get('level'), 30000)
+                if stage['name'] == 'listening' and stage['audio'] is not None:
+                    readings.append(stage['audio'])
+            self.assertLess(time.monotonic() - started, 1.5)
+            self.assertEqual([reading['level'] for reading in readings], [1234] * 3)
+            self.assertLess(readings[0]['age'], readings[-1]['age'])
+
+    def test_audio_heartbeat_does_not_wake_for_each_runtime_sample(self):
+        self.controller.stage_changed('listening', 60)
+        with patch.object(self.controller.stage_condition, 'notify_all') as notify:
+            for level in range(100):
+                self.controller.audio_changed(level)
+            notify.assert_not_called()
+        with patch.object(self.controller.stage_condition, 'wait_for') as wait:
+            self.controller.stage_updates(self.controller.stages[-1]['id'])
+            self.assertEqual(wait.call_args.kwargs['timeout'], .1)
+            self.controller.stage_changed('paused', None)
+            self.controller.stage_updates(self.controller.stages[-1]['id'])
+            self.assertEqual(wait.call_args.kwargs['timeout'], 2)
 
     def test_stage_stream_uses_existing_access_checks(self):
         self.assertEqual(self.request('/api/stages', headers={'Host': 'untrusted.example'})[0], 403)

@@ -38,6 +38,7 @@ class Controller:
         self.lock = threading.RLock()
         self.stage_condition = threading.Condition(self.lock)
         self.stages = deque(maxlen=64)
+        self.audio = None
         self._set_stage('stopped')
         self.worker = None
         self.stop_event = threading.Event()
@@ -85,12 +86,21 @@ class Controller:
                 self._set_stage(name, duration)
 
     def stage_snapshot(self, stage):
+        now = time.monotonic()
         return dict(id=stage['id'], name=stage['name'], duration=stage['duration'],
-                    elapsed=max(0, time.monotonic() - stage['started']))
+                    elapsed=max(0, now - stage['started']), threshold=self.config['THRESHOLD'],
+                    audio=(dict(level=self.audio[0], sampled=self.audio[1], age=max(0, now - self.audio[1]))
+                           if self.audio is not None else None))
+
+    def audio_changed(self, level):
+        with self.lock:
+            if not self.stop_event.is_set() and not self.closing:
+                self.audio = (level, time.monotonic())
 
     def stage_updates(self, after):
         with self.stage_condition:
-            self.stage_condition.wait_for(lambda: self.closing or self.stages[-1]['id'] > after, timeout=2)
+            self.stage_condition.wait_for(lambda: self.closing or self.stages[-1]['id'] > after,
+                                          timeout=.1 if self.stages[-1]['name'] == 'listening' else 2)
             # Slow or reconnected pages resume at the current stage, not an old cycle.
             if after < self.stages[0]['id'] - 1:
                 return [self.stage_snapshot(self.stages[-1])]
@@ -272,6 +282,7 @@ class Controller:
             self.stop_event = threading.Event()
             self.status, self.error = 'Starting', None
             self.microphone = ''
+            self.audio = None
             self._set_stage('starting')
             self.started = time.monotonic()
             self.elapsed = 0
@@ -302,7 +313,7 @@ class Controller:
                 from main import main
                 runner = main
             runner(config=config, stop_event=self.stop_event, log=self.record, on_ready=ready,
-                   on_stage=self.stage_changed, on_pause=self.pause)
+                   on_stage=self.stage_changed, on_pause=self.pause, on_audio=self.audio_changed)
             with self.lock:
                 self.status = 'Stopped'
                 self._set_stage('stopped')

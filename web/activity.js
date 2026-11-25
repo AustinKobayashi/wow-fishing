@@ -7,6 +7,15 @@
  const detail = document.getElementById('activityDetail')
  const next = document.getElementById('activityNext')
  const fill = document.getElementById('activityFill')
+ const audioLevel = document.getElementById('audioLevel')
+ const audioLive = document.getElementById('audioLive')
+ const audioStatus = document.getElementById('audioStatus')
+ const audioScale = document.getElementById('audioScale')
+ const audioThresholdValue = document.getElementById('audioThresholdValue')
+ const audioThreshold = document.getElementById('audioThreshold')
+ const audioLine = document.getElementById('audioLine')
+ const audioArea = document.getElementById('audioArea')
+ const audioDot = document.getElementById('audioDot')
  const stages = {
   starting:['Starting', 'Connecting audio and servo.', 'Casting'],
   paused:['Paused', 'Five consecutive casts failed. The session timer is paused.', 'Cast a line to resume, or Stop fishing to end the session'],
@@ -23,6 +32,51 @@
   unavailable:['State unavailable', 'Connection lost. The bot may still be running.', 'Waiting to reconnect']
  }
  let stage = null, receivedAt = 0, source
+ let audio = null, threshold = null, lastSampled = null, history = []
+ function drawAudio() {
+  const now = performance.now()
+  const age = audio ? audio.age * 1000 + now - receivedAt : Infinity
+  if (audio && audio.sampled !== lastSampled) {
+   lastSampled = audio.sampled
+   if (age <= 1000) history.push({time: now - age, level: audio.level})
+  }
+  history = history.filter(point => now - point.time <= 1000).slice(-11)
+  const live = stage && stage.name === 'listening' && age <= 500
+  audioLevel.textContent = live ? Math.round(audio.level).toLocaleString('en-US') : '--'
+  audioLive.textContent = !stage ? 'OFFLINE' : live ? 'LIVE' : 'INACTIVE'
+  const status = !stage ? 'Connection unavailable' : live ? (audio.level > threshold ? 'Above threshold' : 'Below threshold') :
+   stage.name === 'listening' ? 'Waiting for an audio reading' : 'Not sampling during this activity'
+  if (audioStatus.textContent !== status) audioStatus.textContent = status
+  const ceiling = Math.min(32768, Math.max(12000, threshold * 1.5, ...history.map(point => point.level)))
+  const y = level => 98 - level / ceiling * 96
+  audioScale.textContent = Math.round(ceiling).toLocaleString('en-US')
+  audioThresholdValue.textContent = threshold === null ? '--' : threshold.toLocaleString('en-US')
+  audioThreshold.setAttribute('visibility', threshold === null ? 'hidden' : 'visible')
+  audioThreshold.setAttribute('y1', y(threshold))
+  audioThreshold.setAttribute('y2', y(threshold))
+  let line = '', area = '', start = null, previous = null
+  for (const point of history) {
+   const x = 2 + (1 - (now - point.time) / 1000) * 296
+   const top = y(point.level)
+   const gap = !previous || point.time - previous.time > 250
+   if (gap) {
+    if (previous) area += ` L${previous.x},98 L${start},98 Z`
+    start = x
+   }
+   const segment = `${gap ? 'M' : 'L'}${x},${top}`
+   line += segment
+   area += segment
+   previous = {...point, x, top}
+  }
+  if (previous) {
+   area += ` L${previous.x},98 L${start},98 Z`
+   audioDot.setAttribute('cx', previous.x)
+   audioDot.setAttribute('cy', previous.top)
+  }
+  audioLine.setAttribute('d', line)
+  audioArea.setAttribute('d', area)
+  audioDot.setAttribute('visibility', previous ? 'visible' : 'hidden')
+ }
  function describe(key) {
   const labels = stages[key]
   name.textContent = labels[0]
@@ -32,6 +86,10 @@
  }
  function unavailable() {
   stage = null
+  audio = null
+  history = []
+  lastSampled = null
+  drawAudio()
   describe('unavailable')
   timer.textContent = 'Unknown'
   caption.textContent = 'No live timing available'
@@ -72,18 +130,24 @@
     if (!stage || update.id !== stage.id) describe(update.name)
     stage = update
     receivedAt = performance.now()
+    threshold = Number.isFinite(update.threshold) && update.threshold >= 0 && update.threshold <= 32768 ? update.threshold : null
+    const reading = update.audio
+    audio = threshold !== null && reading && Number.isFinite(reading.level) && reading.level >= 0 && reading.level <= 32768 &&
+     Number.isFinite(reading.sampled) && Number.isFinite(reading.age) && reading.age >= 0 ? reading : null
     drawTimer()
    } catch (_) { unavailable() }
   })
   source.onerror = unavailable
  }
  connect()
- let tick = setInterval(drawTimer, 100)
+ function draw() { drawTimer()
+  drawAudio() }
+ let tick = setInterval(draw, 100)
  window.addEventListener('pagehide', () => { source.close()
   clearInterval(tick) })
  window.addEventListener('pageshow', event => { if (event.persisted) {
   unavailable()
   connect()
-  tick = setInterval(drawTimer, 100)
+  tick = setInterval(draw, 100)
  } })
 }

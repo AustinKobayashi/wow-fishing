@@ -16,7 +16,24 @@
 <div class="activity-caption" id="activityCaption">Waiting for the bot's current state</div>
 <p id="activityDetail">Connecting to the fishing controller.</p>
 <div class="activity-next" id="activityNext">Next: Receive current activity</div></div>
-</section><div class="location-tag"><span>✦</span> Somewhere in Azeroth <small>Just you and the water.</small></div></div></header>
+</section>
+<section class="audio-box" aria-labelledby="audioHeading">
+<div class="audio-heading"><h2 class="eyebrow" id="audioHeading">Audio level</h2><span id="audioLive">CONNECTING</span></div>
+<div class="audio-reading"><span id="audioLevel">--</span><span class="small">/ 32,768</span></div>
+<div id="audioStatus" role="status" aria-live="polite">Waiting for the controller</div>
+<div class="audio-plot">
+<div class="audio-scale"><span id="audioScale">12,000</span><span>Threshold <span id="audioThresholdValue">--</span></span></div>
+<svg class="audio-graph" viewBox="0 0 300 100" preserveAspectRatio="none" role="img" aria-label="Mean absolute audio amplitude over the last second. Dashed line marks the detection threshold.">
+<line class="audio-grid" x1="0" y1="98" x2="300" y2="98"></line>
+<line class="audio-grid" x1="0" y1="50" x2="300" y2="50"></line>
+<path id="audioArea"></path><line id="audioThreshold" x1="0" y1="42" x2="300" y2="42" visibility="hidden"></line>
+<path id="audioLine" fill="none"></path><circle id="audioDot" cx="298" cy="98" r="2.5" visibility="hidden"></circle>
+</svg>
+<div class="audio-axis"><span>1 second ago</span><span>Now</span></div>
+</div>
+<div class="audio-foot">Mean absolute audio amplitude</div>
+</section>
+<div class="location-tag"><span>✦</span> Somewhere in Azeroth <small>Just you and the water.</small></div></div></header>
 <div class="notice" id="notice" role="status">Connecting to the Python controller...</div>
 <div class="cards"><div class="card"><div class="eyebrow">Bot status</div><div class="value" id="status">Connecting</div><div class="small">Hardware session</div></div><div class="card"><div class="eyebrow">Session time</div><div class="value" id="elapsed">00:00:00</div><div class="small" id="runlimit">5 hour run limit</div></div><div class="card"><div class="eyebrow">Detection threshold</div><div class="value" id="threshold">7,000</div><div class="small">Mean absolute audio amplitude</div></div><div class="card"><div class="eyebrow">Reel cutoff</div><div class="value" id="cutoffCard">2.100 <span class="small">s</span></div><div class="small">Skip at or above this delay</div></div></div>
 

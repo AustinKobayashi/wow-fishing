@@ -60,10 +60,11 @@ button{border-radius:2px;border-color:#79613c;background:linear-gradient(#393326
 .catch-entry-table th { white-space: nowrap; font-size: 12px }
 .catch-entry-table td.catch-row-editor { width: auto; text-align: left; padding: 8px 0 }
 
-.fishing-hero { gap: 28px; align-items: center }
+.fishing-hero { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 1.7fr); gap: 28px; align-items: center }
 .hero-copy { flex: 1; min-width: 0 }
-.hero-state-column { flex: 0 0 310px; min-width: 0 }
-.hero-state-column .location-tag { position: static; margin-top: 14px; text-align: right }
+.hero-actions { flex-wrap: wrap }
+.hero-state-column { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; min-width: 0 }
+.hero-state-column .location-tag { grid-column: 1 / -1; position: static; margin-top: 0; text-align: right }
 .activity-box { position: relative; overflow: hidden; padding: 21px; background: #14221fe8; border: 1px solid #627a62 }
 .activity-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: #85bcae28; pointer-events: none }
 .activity-content { position: relative }
@@ -75,8 +76,30 @@ button{border-radius:2px;border-color:#79613c;background:linear-gradient(#393326
 .activity-content p { margin: 14px 0 0; min-height: 36px }
 .activity-next { border-top: 1px solid #415547; padding-top: 12px; margin-top: 13px; min-height: 49px; font-size: 12px; color: #d4c49e }
 .activity-box[data-stage="unavailable"], .activity-box[data-stage="error"] { border-color: #ad8853 }
+.audio-box { display: flex; flex-direction: column; min-width: 0; padding: 21px; background: #14221fe8; border: 1px solid #627a62 }
+.audio-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px }
+.audio-heading h2 { font: 11px "Segoe UI",sans-serif; color: #acc8bb; letter-spacing: 1.5px }
+#audioLive { color: #acc8bb; font-size: 10px; letter-spacing: 1px }
+.audio-reading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 11px 0 7px; font: 31px Georgia,serif; color: #eaf0df; font-variant-numeric: tabular-nums }
+.audio-reading .small { color: #c1cbbd; font: 12px "Segoe UI",sans-serif }
+#audioStatus { min-height: 36px; font-size: 12px; color: #c1cbbd }
+.audio-plot { margin: 12px 0 15px }
+.audio-scale, .audio-axis { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-size: 11px; color: #c1cbbd; font-variant-numeric: tabular-nums }
+.audio-scale { margin-bottom: 6px }
+.audio-scale > span:last-child { color: var(--gold) }
+.audio-axis { margin-top: 6px }
+.audio-graph { display: block; width: 100%; height: 90px; overflow: visible }
+.audio-grid { stroke: #415547; stroke-width: 1 }
+#audioThreshold { stroke: var(--gold); stroke-width: 1.25; stroke-dasharray: 5 5; vector-effect: non-scaling-stroke }
+#audioArea { fill: var(--mint); opacity: .1 }
+#audioLine { stroke: var(--mint); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke }
+#audioDot { fill: var(--mint) }
+.audio-foot { margin-top: auto; border-top: 1px solid #415547; padding-top: 12px; font-size: 11px; color: #c1cbbd }
 @media(max-width:800px) {
- .fishing-hero { flex-direction: column; align-items: stretch }
+ .fishing-hero { grid-template-columns: 1fr; align-items: stretch }
  .hero-state-column { flex: none; width: 100% }
- .activity-box { padding: 18px }
+ .activity-box, .audio-box { padding: 18px }
+}
+@media(max-width:520px) {
+ .hero-state-column { grid-template-columns: 1fr }
 }

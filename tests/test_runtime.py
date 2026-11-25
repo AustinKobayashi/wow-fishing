@@ -12,7 +12,7 @@ from servo import Servo
 
 class RuntimeTests(unittest.TestCase):
     def run_fake(self, changes=None, stop_on_delay=None, read_error=False, stages=None,
-                 stop_after_casts=2, audio_level=lambda: 8000, logs=None, pause=None):
+                 stop_after_casts=2, audio_level=lambda: 8000, logs=None, pause=None, levels=None):
         config = dict(DEFAULTS, REEL_TIME_DELAY_AFTER_CAST=0, IDLE_PROBABILITY=0)
         config.update(changes or {})
         now = [0.0]
@@ -53,11 +53,22 @@ class RuntimeTests(unittest.TestCase):
             else:
                 main(config, event, logs.append if logs is not None else lambda _: None,
                      audio_module=audio_module, servo_factory=factory, on_stage=on_stage,
-                     on_pause=(lambda: pause(now, stopped, actions)) if pause else None)
+                     on_pause=(lambda: pause(now, stopped, actions)) if pause else None,
+                     on_audio=levels.append if levels is not None else lambda _: None)
         servo.cleanup.assert_called_once()
         stream.close.assert_called_once()
         audio.terminate.assert_called_once()
         return actions, now[0]
+
+    def test_audio_reporting_uses_detection_level_without_changing_actions(self):
+        for sample in (0, -8000, -32768):
+            with self.subTest(sample=sample):
+                levels = []
+                expected = self.run_fake(audio_level=lambda: sample)
+                actual = self.run_fake(audio_level=lambda: sample, levels=levels)
+                self.assertEqual(actual, expected)
+                self.assertTrue(levels)
+                self.assertEqual(set(levels), {abs(sample)})
 
     def test_resume_resets_guard_and_stop_while_paused_does_not_cast(self):
         pauses, logs = [], []

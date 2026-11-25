@@ -17,7 +17,7 @@ class Stopped(Exception):
 
 def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
          audio_module=None, servo_factory=Servo, on_stage=lambda name, duration: None,
-         on_pause=None):
+         on_pause=None, on_audio=lambda level: None):
     config = validate(config) if config is not None else load_config()
     stop_event = stop_event if stop_event is not None else threading.Event()
     start = time.monotonic()
@@ -93,6 +93,7 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
             data = np.frombuffer(stream.read(1024, exception_on_overflow=False), dtype=np.int16)
             # int32 avoids abs(-32768) overflowing an int16 sample.
             level = float(np.abs(data.astype(np.int32)).mean())
+            on_audio(level)
             if level > config['THRESHOLD'] and time.monotonic() - last_cast > config['REEL_TIME_DELAY_AFTER_CAST']:
                 consecutive_failed_casts = 0
                 detections += 1
