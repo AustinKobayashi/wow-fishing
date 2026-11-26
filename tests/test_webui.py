@@ -85,7 +85,7 @@ class ServerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.calls = []
-        def runner(config, stop_event, log, on_ready, on_stage, on_pause, on_audio):
+        def runner(config, stop_event, log, on_ready, on_stage, on_pause, on_audio, pause_event):
             self.calls.append(config)
             on_ready()
             on_stage('listening', config['LAST_CAST_MAX'])
@@ -161,6 +161,34 @@ class ServerTests(unittest.TestCase):
             self.assertFalse(state['active'])
             self.assertEqual(state['status'], 'Stopped')
             self.assertEqual(state['elapsed'], 25)
+
+    def test_manual_pause_api_uses_existing_session_pause_and_resume(self):
+        def runner(on_ready, on_pause, pause_event, stop_event, **_):
+            on_ready()
+            while not stop_event.wait(.01):
+                if pause_event.is_set():
+                    pause_event.clear()
+                    on_pause()
+        self.controller.runner = runner
+        self.assertEqual(self.request('/api/pause', {})[0], 409)
+        self.controller.start()
+        worker = self.controller.worker
+        for headers in ({'X-Control-Token': 'wrong'}, {'Origin': 'http://foreign.example'}):
+            self.assertEqual(self.request('/api/pause', {}, headers)[0], 403)
+        for _ in range(2):
+            self.assertEqual(self.request('/api/pause', {})[0], 200)
+            with self.controller.stage_condition:
+                self.assertTrue(self.controller.stage_condition.wait_for(
+                    lambda: self.controller.status == 'Paused', timeout=2))
+            elapsed = self.controller.snapshot()['elapsed']
+            self.assertIsNone(self.controller.started)
+            self.assertEqual(self.request('/api/pause', {})[0], 200)
+            self.assertEqual(self.controller.snapshot()['elapsed'], elapsed)
+            self.assertEqual(self.request('/api/start', {})[0], 200)
+            self.assertIs(self.controller.worker, worker)
+        self.controller.stop()
+        worker.join(timeout=2)
+        self.assertFalse(self.controller.active())
 
     def test_shutdown_wakes_paused_session_for_cleanup(self):
         cleaned = threading.Event()

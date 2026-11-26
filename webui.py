@@ -42,6 +42,7 @@ class Controller:
         self._set_stage('stopped')
         self.worker = None
         self.stop_event = threading.Event()
+        self.pause_event = threading.Event()
         self.status = 'Stopped'
         self.error = None
         self.microphone = ''
@@ -280,6 +281,7 @@ class Controller:
                 raise Conflict('A session is already active or the server is shutting down.')
             config = self.config.copy()
             self.stop_event = threading.Event()
+            self.pause_event = threading.Event()
             self.status, self.error = 'Starting', None
             self.microphone = ''
             self.audio = None
@@ -290,6 +292,14 @@ class Controller:
             self.worker.start()
         return self.snapshot()
 
+    def request_pause(self):
+        with self.lock:
+            if self.closing or not self.active() or self.status not in ('Starting', 'Running', 'Paused'):
+                raise Conflict('Start fishing before pausing the session.')
+            if self.status != 'Paused':
+                self.pause_event.set()
+        return self.snapshot()
+
     def pause(self):
         with self.stage_condition:
             if self.stop_event.is_set() or self.closing:
@@ -298,7 +308,7 @@ class Controller:
             self.started = None
             self.status = 'Paused'
             self._set_stage('paused')
-            self.record('Paused after 5 consecutive failed casts. Cast a line to resume or Stop fishing to end the session.')
+            self.record('Fishing paused. Resume fishing to continue or Stop fishing to end the session.')
             self.stage_condition.wait_for(lambda: self.status != 'Paused' or self.stop_event.is_set() or self.closing)
 
     def _run(self, config):
@@ -313,7 +323,8 @@ class Controller:
                 from main import main
                 runner = main
             runner(config=config, stop_event=self.stop_event, log=self.record, on_ready=ready,
-                   on_stage=self.stage_changed, on_pause=self.pause, on_audio=self.audio_changed)
+                   on_stage=self.stage_changed, on_pause=self.pause, on_audio=self.audio_changed,
+                   pause_event=self.pause_event)
             with self.lock:
                 self.status = 'Stopped'
                 self._set_stage('stopped')
@@ -496,6 +507,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(preview(validate(payload.get('config')), payload.get('mode'), payload.get('scenario')))
             elif path == '/api/start':
                 self.json(controller.start())
+            elif path == '/api/pause':
+                self.json(controller.request_pause())
             elif path == '/api/stop':
                 self.json(controller.stop())
             elif path == '/api/reconnect-microphone':

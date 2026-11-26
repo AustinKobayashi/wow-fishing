@@ -30,6 +30,9 @@ function controls() {
  const paused = currentState?.status === 'Paused'
  const restarting = currentState?.status === 'Restarting'
  $('start').disabled = !connected || busy || restarting || (paused ? false : active || dirty || !previewValid)
+ $('startLabel').textContent = paused ? 'Resume fishing' : 'Cast a line'
+ $('startHint').textContent = paused ? 'RESUME BOT' : 'START BOT'
+ $('stop').textContent = paused || currentState?.status === 'Stopping' ? 'Stop fishing' : 'Pause fishing'
  $('stop').disabled = !connected || busy || !active || currentState.status === 'Stopping'
  $('reconnectMicrophone').disabled = !connected || busy || active || restarting
  $('save').disabled = !connected || busy || restarting || active || !dirty || !previewValid
@@ -261,7 +264,7 @@ function applyState(state) {
  connected = true
  $('connection').textContent = 'Controller connected'
  $('notice').classList.remove('connection-error')
- $('notice').textContent = state.error ? 'Controller error: ' + state.error : state.status === 'Restarting' ? 'Reconnecting the microphone. Fishing stays stopped.' : state.status === 'Paused' ? 'SESSION PAUSED · Five consecutive casts failed. The timer is paused. Cast a line to resume, or Stop fishing to end this session.' : state.active ? 'LIVE SESSION · The bot runs on the server. Closing this page does not stop it. Use Stop fishing to end the session.' : 'LOCAL CONTROL · Save your settings, then cast a line. Starting will operate the connected servo and audio input.'
+ $('notice').textContent = state.error ? 'Controller error: ' + state.error : state.status === 'Restarting' ? 'Reconnecting the microphone. Fishing stays stopped.' : state.status === 'Paused' ? 'SESSION PAUSED · The timer is paused. Resume fishing to continue, or Stop fishing to end this session.' : state.active ? 'LIVE SESSION · The bot runs on the server. Closing this page does not stop it. Use Pause fishing, then Stop fishing to end the session.' : 'LOCAL CONTROL · Save your settings, then cast a line. Starting will operate the connected servo and audio input.'
  $('microphoneMessage').textContent = state.microphone || ''
  $('status').textContent = state.status
  const seconds = Math.floor(state.elapsed)
@@ -376,7 +379,7 @@ $('reset').onclick = () => { fill(defaults)
  updatePreview() }
 $('save').onclick = () => { try { action('/api/config',{config:readFields()}) } catch (error) { previewError(error.message) } }
 $('start').onclick = () => action('/api/start',{})
-$('stop').onclick = () => action('/api/stop',{})
+$('stop').onclick = () => action(currentState?.status === 'Paused' ? '/api/stop' : '/api/pause',{})
 $('reconnectMicrophone').onclick = () => action('/api/reconnect-microphone',{})
 $('catchNav').onclick = () => { $('catchLog').open = true }
 $('catchLog').ontoggle = () => { if ($('catchLog').open && connected) refreshCatches() }

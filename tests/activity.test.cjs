@@ -66,7 +66,7 @@ test('listening shows elapsed time and recast deadline rather than a predicted b
 test('handles branches, stop, error and untimed stages', () => {
  const p = preview(), e = p.elements
  let id = 0
- for (const [name, label] of [['casting','Casting'], ['skipping','Waiting out fishing window'],
+ for (const [name, label] of [['startdelay','Get ready to fish'], ['casting','Casting'], ['skipping','Waiting out fishing window'],
   ['idle','Taking idle break'], ['castdelay','Waiting before next cast']]) {
   p.send(name, 3, 1, ++id)
   assert.equal(e.activityName.textContent, label)
@@ -79,7 +79,7 @@ test('handles branches, stop, error and untimed stages', () => {
   assert.equal(e.activityCaption.textContent, 'No active countdown')
   if (name === 'paused') {
    assert.equal(e.activityTimer.textContent, 'Timer paused')
-   assert.match(e.activityNext.textContent, /Cast a line to resume/)
+   assert.match(e.activityNext.textContent, /Resume fishing to continue/)
   }
  }
 })
