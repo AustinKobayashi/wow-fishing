@@ -47,7 +47,10 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                 raise Stopped('Stop requested.')
 
     def listening():
-        on_stage('listening', max(0, last_cast + config['LAST_CAST_MAX'] - time.monotonic()))
+        timeout = float(nd.for_config(config, 'RECAST_TIME').rvs())
+        log(f'Recast timeout: {timeout:.2f} seconds')
+        on_stage('listening', max(0, last_cast + config['WOW_FISHING_TIME'] - time.monotonic()))
+        return last_cast + timeout
 
     try:
         if audio_module is None:
@@ -70,12 +73,15 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                 servo.press_fishing_button('Casting')
                 last_cast = time.monotonic()
                 on_ready()
-                listening()
+                recast_at = listening()
                 log('Listening for a bite.')
                 while True:
                     wait(0)
                     servo.set_neutral()
-                    if time.monotonic() - last_cast > config['LAST_CAST_MAX']:
+                    if time.monotonic() - last_cast >= config['WOW_FISHING_TIME']:
+                        remaining = max(0, recast_at - time.monotonic())
+                        on_stage('reconciling', remaining)
+                        wait(remaining)
                         log('Did not cast, recasting...')
                         consecutive_failed_casts += 1
                         if consecutive_failed_casts >= 5:
@@ -86,7 +92,8 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                         on_stage('casting', 2 * config['SERVO_HOLD_TIME'])
                         servo.press_fishing_button('Casting')
                         last_cast = time.monotonic()
-                        listening()
+                        recast_at = listening()
+                        continue
                     wait(.01)
                     # Read only available frames so stop requests are checked while waiting.
                     queued = stream.get_read_available()
@@ -98,13 +105,19 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                     while stream.get_read_available() < 1024:
                         if not stream.is_active():
                             raise RuntimeError('Audio input stream stopped.')
+                        if time.monotonic() - last_cast >= config['WOW_FISHING_TIME']:
+                            break
                         wait(.01)
                     wait(0)
+                    if time.monotonic() - last_cast >= config['WOW_FISHING_TIME']:
+                        continue
                     data = np.frombuffer(stream.read(1024, exception_on_overflow=False), dtype=np.int16)
                     # int32 avoids abs(-32768) overflowing an int16 sample.
                     level = float(np.abs(data.astype(np.int32)).mean())
                     on_audio(level)
-                    if level > config['THRESHOLD'] and time.monotonic() - last_cast > config['REEL_TIME_DELAY_AFTER_CAST']:
+                    age = time.monotonic() - last_cast
+                    if (level > config['THRESHOLD']
+                            and config['REEL_TIME_DELAY_AFTER_CAST'] < age < config['WOW_FISHING_TIME']):
                         consecutive_failed_casts = 0
                         detections += 1
                         volume_sum += level
@@ -141,7 +154,7 @@ def main(config=None, stop_event=None, log=lg.log, on_ready=lambda: None,
                         on_stage('casting', 2 * config['SERVO_HOLD_TIME'])
                         servo.press_fishing_button('Casting')
                         last_cast = time.monotonic()
-                        listening()
+                        recast_at = listening()
                     wait(config['CHECK_INTERVAL'])
             except PauseRequested:
                 servo.set_neutral()

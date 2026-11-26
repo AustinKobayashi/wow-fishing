@@ -52,13 +52,13 @@ test('uses sampled timing, resumes elapsed progress and never advances a stage a
  assert.equal(e.activityName.textContent, 'Pressing reel key')
 })
 
-test('listening shows elapsed time and recast deadline rather than a predicted bite', () => {
+test('listening shows elapsed time and the end of the listening window', () => {
  const p = preview(), e = p.elements
- p.send('listening', 59.8, 12)
+ p.send('listening', 30, 12)
  assert.equal(e.activityTimer.textContent, '12.0 s listening')
- assert.equal(e.activityCaption.textContent, 'Recast in 47.8 s')
- p.send('listening', 59.8, 60)
- assert.equal(e.activityCaption.textContent, 'Recast due. Waiting for bot.')
+ assert.equal(e.activityCaption.textContent, 'Listening ends in 18.0 s')
+ p.send('listening', 30, 30)
+ assert.equal(e.activityCaption.textContent, 'Listening window ended. Waiting for bot.')
  assert.equal(e.activityName.textContent, 'Waiting for bite audio')
  assert.equal(e.activityFill.style.width, '0%')
 })
@@ -67,7 +67,7 @@ test('handles branches, stop, error and untimed stages', () => {
  const p = preview(), e = p.elements
  let id = 0
  for (const [name, label] of [['startdelay','Get ready to fish'], ['casting','Casting'], ['skipping','Waiting out fishing window'],
-  ['idle','Taking idle break'], ['castdelay','Waiting before next cast']]) {
+  ['idle','Taking idle break'], ['castdelay','Waiting before next cast'], ['reconciling','Waiting to recast']]) {
   p.send(name, 3, 1, ++id)
   assert.equal(e.activityName.textContent, label)
   assert.equal(e.activityTimer.textContent, '2.0 s remaining')
@@ -82,6 +82,17 @@ test('handles branches, stop, error and untimed stages', () => {
    assert.match(e.activityNext.textContent, /Resume fishing to continue/)
   }
  }
+})
+
+test('reconciliation counts down without showing buffered audio as live', () => {
+ const p = preview(), e = p.elements
+ p.send('reconciling', 15, 2, 1, {threshold:7000, audio:{sampled:1,level:12000,age:0}})
+ p.advance(100)
+ assert.equal(e.activityName.textContent, 'Waiting to recast')
+ assert.equal(e.activityTimer.textContent, '12.9 s remaining')
+ assert.match(e.activityDetail.textContent, /Audio triggers are disabled/)
+ assert.equal(e.audioLevel.textContent, '--')
+ assert.equal(e.audioLive.textContent, 'INACTIVE')
 })
 
 test('lost or stale updates suspend timing and reconnect accepts a restarted server', () => {

@@ -32,7 +32,6 @@ SCHEMA = {'timing': [['REEL_TIME_MIN', 'Reel minimum', 's', 0.985, 0.001, 20, 0.
                ['RATE', 'Sample rate', 'Hz', 48000, 8000, 192000, 1],
                ['CHANNELS', 'Audio channels', 'channels', 1, 1, 2, 1]],
  'session': [['MAX_RUN_TIME', 'Maximum runtime', 's', 18000, 1, 86400, 1],
-             ['LAST_CAST_MAX', 'Recast timeout', 's', 60, 1, 600, 1],
              ['IDLE_TIME_MIN', 'Idle minimum', 's', 10, 0, 3600, 1],
              ['IDLE_TIME_MAX', 'Idle maximum', 's', 120, 0, 3600, 1],
              ['IDLE_PROBABILITY',
@@ -89,6 +88,7 @@ def load_config(path=CONFIG_PATH):
         return DEFAULTS.copy()
     values = json.loads(path.read_text(encoding='utf-8'))
     if isinstance(values, dict):
+        values.pop('LAST_CAST_MAX', None)
         if 'SERVO_SPEED' in values and 'SERVO_HOLD_TIME' not in values:
             values['SERVO_HOLD_TIME'] = values.pop('SERVO_SPEED')
         values.setdefault('SERVO_RETURN', 0)

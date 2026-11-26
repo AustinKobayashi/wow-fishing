@@ -17,6 +17,16 @@ import webui
 
 
 class ConfigAndMathTests(unittest.TestCase):
+    def test_recast_distribution_minimum_center_and_spread_follow_fishing_duration(self):
+        for duration, minimum in ((28, 35), (30, 35), (60, 65)):
+            with self.subTest(duration=duration):
+                model = for_config(dict(DEFAULTS, WOW_FISHING_TIME=duration), 'RECAST_TIME')
+                self.assertEqual(model.support()[0], minimum)
+                self.assertEqual(model.kwds['loc'], minimum + 10)
+                self.assertEqual(model.kwds['scale'], 5)
+                self.assertGreater(model.cdf(minimum + 25), .998)
+                self.assertTrue((model.rvs(size=1000, random_state=42) >= minimum).all())
+
     def test_return_pulse_validation(self):
         for value in (0, 500, 1500, 2500):
             self.assertEqual(validate(dict(DEFAULTS, SERVO_RETURN=value))['SERVO_RETURN'], value)
@@ -25,7 +35,7 @@ class ConfigAndMathTests(unittest.TestCase):
                 validate(dict(DEFAULTS, SERVO_RETURN=value))
 
     def test_old_saved_settings_load_without_changing_calibration(self):
-        old = dict(DEFAULTS, SERVO_CLICK=1870, WOW_FISHING_TIME=28)
+        old = dict(DEFAULTS, SERVO_CLICK=1870, WOW_FISHING_TIME=28, LAST_CAST_MAX=60)
         old['SERVO_SPEED'] = old.pop('SERVO_HOLD_TIME')
         del old['SERVO_RETURN']
         with tempfile.TemporaryDirectory() as folder:
@@ -63,7 +73,8 @@ class ConfigAndMathTests(unittest.TestCase):
         self.assertTrue(any(x == DEFAULTS['DONT_REEL_TIME'] for x, _ in data['points']))
         self.assertEqual(preview(dict(DEFAULTS, DONT_REEL_TIME=.5), 'reel', 10)['cutoff_skip'], 1)
         self.assertTrue(preview(DEFAULTS, 'reel', 1.5)['guard_blocks'])
-        self.assertTrue(preview(DEFAULTS, 'reel', 61)['recast_due'])
+        self.assertFalse(preview(DEFAULTS, 'reel', 29.9)['window_expired'])
+        self.assertTrue(preview(DEFAULTS, 'reel', 30)['window_expired'])
 
     def test_cast_conditional_matches_runtime_and_density_integrates(self):
         from scipy.integrate import quad
@@ -88,7 +99,7 @@ class ServerTests(unittest.TestCase):
         def runner(config, stop_event, log, on_ready, on_stage, on_pause, on_audio, pause_event):
             self.calls.append(config)
             on_ready()
-            on_stage('listening', config['LAST_CAST_MAX'])
+            on_stage('listening', config['WOW_FISHING_TIME'])
             on_audio(1234)
             log('Test runner is ready')
             stop_event.wait(3)

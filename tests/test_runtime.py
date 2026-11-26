@@ -14,7 +14,7 @@ from servo import Servo
 class RuntimeTests(unittest.TestCase):
     def run_fake(self, changes=None, stop_on_delay=None, read_error=False, stages=None,
                  stop_after_casts=2, audio_level=lambda: 8000, logs=None, pause=None, levels=None,
-                 pause_at=None):
+                 pause_at=None, recast_sample=lambda: 45, available_frames=1024):
         config = dict(DEFAULTS, REEL_TIME_DELAY_AFTER_CAST=0, IDLE_PROBABILITY=0)
         config.update(changes or {})
         now = [0.0]
@@ -28,7 +28,7 @@ class RuntimeTests(unittest.TestCase):
         event = SimpleNamespace(wait=wait)
         stream = Mock()
         stream.is_active.return_value = True
-        stream.get_read_available.return_value = 1024
+        stream.get_read_available.return_value = available_frames
         stream.read.side_effect = RuntimeError('Audio read failed') if read_error else lambda *a, **k: np.full(1024,audio_level(),dtype=np.int16).tobytes()
         audio = Mock()
         audio.open.return_value = stream
@@ -54,7 +54,7 @@ class RuntimeTests(unittest.TestCase):
                     stopped[0] = True
             servo.press_fishing_button.side_effect = press
             return servo
-        with patch('main.time.monotonic', side_effect=lambda: now[0]), patch('main.nd.for_config', return_value=SimpleNamespace(rvs=lambda:1.2)), patch('main.STATS_PATH'), patch('main.np.random.uniform', return_value=10):
+        with patch('main.time.monotonic', side_effect=lambda: now[0]), patch('main.nd.for_config', side_effect=lambda config, prefix, mean=None: SimpleNamespace(rvs=recast_sample if prefix == 'RECAST_TIME' else lambda: 1.2)), patch('main.STATS_PATH'), patch('main.np.random.uniform', return_value=10):
             if read_error:
                 with self.assertRaisesRegex(RuntimeError, 'Audio read failed'):
                     main(config, event, lambda _: None, audio_module=audio_module, servo_factory=factory, on_stage=on_stage)
@@ -74,12 +74,85 @@ class RuntimeTests(unittest.TestCase):
         def pause(now, stopped, actions):
             now[0] += 100
             resumed_at.append(now[0])
-        self.run_fake({'LAST_CAST_MAX': 1}, stop_after_casts=6, audio_level=lambda: 0,
+        self.run_fake({}, stop_after_casts=6, audio_level=lambda: 0,
                       pause=pause, stages=stages)
         casts = [stage[2] for stage in stages if stage[0] == 'casting']
         self.assertEqual(casts[0], 3)
         self.assertAlmostEqual(casts[5] - resumed_at[0], 3)
         self.assertEqual(len([stage for stage in stages if stage[0] == 'startdelay']), 2)
+
+    def test_recast_samples_once_per_cast_and_waits_only_the_remaining_time(self):
+        stages, levels, logs = [], [], []
+        samples = Mock(side_effect=[35, 50, 45])
+        def noise():
+            self.assertEqual(stages[-1][0], 'listening')
+            cast = next(stage for stage in reversed(stages) if stage[0] == 'casting')
+            return 8000 if time.monotonic() - cast[2] - cast[1] >= 30 else 0
+        actions, _ = self.run_fake(stages=stages, levels=levels, logs=logs,
+                                   audio_level=noise, recast_sample=samples, stop_after_casts=3)
+        self.assertEqual(actions, ['Casting'] * 3)
+        self.assertEqual(samples.call_count, 3)
+        self.assertEqual(logs.count('Did not cast, recasting...'), 2)
+        self.assertFalse(any(line.startswith('Audio level above threshold:') for line in logs))
+        casts = [stage for stage in stages if stage[0] == 'casting']
+        waits = [stage for stage in stages if stage[0] == 'reconciling']
+        for index, timeout in enumerate((35, 50)):
+            cast_end = casts[index][2] + casts[index][1]
+            self.assertAlmostEqual(casts[index + 1][2] - cast_end, timeout)
+            self.assertAlmostEqual(waits[index][2] + waits[index][1], cast_end + timeout)
+
+    def test_reconciliation_wait_can_be_paused_stopped_or_hit_runtime_limit(self):
+        stages, pauses = [], []
+        def pause(now, stopped, actions):
+            pauses.append(now[0])
+        actions, _ = self.run_fake(audio_level=lambda: 0, stages=stages,
+                                   pause=pause, pause_at='reconciling')
+        self.assertEqual(len(pauses), 1)
+        self.assertEqual(actions, ['Casting'] * 2)
+        resumed_cast = [stage for stage in stages if stage[0] == 'casting'][1]
+        self.assertAlmostEqual(resumed_cast[2] - pauses[0], 3)
+        stages.clear()
+        actions, _ = self.run_fake(audio_level=lambda: 0, stages=stages,
+                                   stop_on_delay=lambda d: d > 0 and stages[-1][0] == 'reconciling')
+        self.assertEqual(actions, ['Casting'])
+        logs = []
+        actions, elapsed = self.run_fake({'MAX_RUN_TIME': 40}, audio_level=lambda: 0, logs=logs)
+        self.assertEqual(actions, ['Casting'])
+        self.assertAlmostEqual(elapsed, 40)
+        self.assertIn('Maximum runtime reached.', logs)
+
+    def test_missing_audio_frames_still_reach_reconciliation(self):
+        stages, logs = [], []
+        actions, _ = self.run_fake(stages=stages, logs=logs, available_frames=0)
+        self.assertEqual(actions, ['Casting'] * 2)
+        self.assertEqual(logs.count('Did not cast, recasting...'), 1)
+        self.assertIn('reconciling', [stage[0] for stage in stages])
+
+    def test_wait_audio_is_not_processed_and_buffered_noise_is_discarded(self):
+        for cutoff in (1.2, 2.1):
+            with self.subTest(cutoff=cutoff):
+                stages, logs, noisy_waits = [], [], set()
+                pending_noise = [False]
+                def during_wait(duration):
+                    if duration > 0 and stages[-1][0] in (
+                            'startdelay', 'reaction', 'skipping', 'idle', 'castdelay', 'reconciling'):
+                        pending_noise[0] = True
+                        noisy_waits.add(stages[-1][0])
+                    return False
+                def audio_level():
+                    self.assertEqual(stages[-1][0], 'listening')
+                    if pending_noise[0]:
+                        pending_noise[0] = False
+                        return 12000
+                    return 8000 if not any(line.startswith('Audio level above threshold:') for line in logs) else 0
+                self.run_fake({'DONT_REEL_TIME': cutoff, 'IDLE_PROBABILITY': 1},
+                              stages=stages, logs=logs, audio_level=audio_level,
+                              stop_on_delay=during_wait, stop_after_casts=3)
+                self.assertEqual(sum(line.startswith('Audio level above threshold:') for line in logs), 1)
+                expected = {'startdelay', 'reaction', 'idle', 'castdelay', 'reconciling'}
+                if cutoff == 1.2:
+                    expected.add('skipping')
+                self.assertEqual(noisy_waits, expected)
 
     def test_manual_pause_interrupts_each_activity_and_resumes_with_a_fresh_cast(self):
         for activity in ('startdelay', 'casting', 'listening', 'reaction', 'reeling',
@@ -126,7 +199,7 @@ class RuntimeTests(unittest.TestCase):
                     cast = [stage for stage in stages if stage[0] == 'casting'][-1]
                     return 8000 if time.monotonic() - cast[2] < 1 else 0
                 actions, _ = self.run_fake(
-                    {'REEL_TIME_DELAY_AFTER_CAST': 1.5, 'LAST_CAST_MAX': 3},
+                    {'REEL_TIME_DELAY_AFTER_CAST': 1.5},
                     stop_after_casts=3, audio_level=splash, stages=stages, logs=logs,
                     levels=levels if report_audio else None)
                 self.assertEqual(actions, ['Casting'] * 3)
@@ -166,7 +239,7 @@ class RuntimeTests(unittest.TestCase):
             now[0] += 100
             stopped[0] = len(pauses) == 3
         actions, _ = self.run_fake(
-            {'LAST_CAST_MAX': 1, 'MAX_RUN_TIME': 30}, stop_after_casts=None,
+            {'MAX_RUN_TIME': 800}, stop_after_casts=None,
             audio_level=lambda: 0, logs=logs, pause=pause)
         self.assertEqual(pauses, [5, 10, 15])
         self.assertEqual(actions, ['Casting'] * 15)
@@ -178,17 +251,17 @@ class RuntimeTests(unittest.TestCase):
             pauses.append(now[0])
             now[0] += 100
         _, elapsed = self.run_fake(
-            {'LAST_CAST_MAX': 1, 'MAX_RUN_TIME': 10}, stop_after_casts=None,
+            {'MAX_RUN_TIME': 250}, stop_after_casts=None,
             audio_level=lambda: 0, logs=logs, pause=pause)
         self.assertEqual(len(pauses), 1)
-        self.assertAlmostEqual(elapsed, 110)
+        self.assertAlmostEqual(elapsed, 350)
         self.assertIn('Maximum runtime reached.', logs)
 
     def test_five_consecutive_failed_casts_stop_and_new_session_resets_count(self):
         for _ in range(2):
             logs, stages = [], []
             actions, _ = self.run_fake(
-                {'LAST_CAST_MAX': 1, 'MAX_RUN_TIME': 30}, stop_after_casts=None,
+                {'MAX_RUN_TIME': 800}, stop_after_casts=None,
                 audio_level=lambda: 0, logs=logs, stages=stages)
             self.assertEqual(logs.count('Did not cast, recasting...'), 5)
             self.assertEqual(actions, ['Casting'] * 5)
@@ -203,7 +276,7 @@ class RuntimeTests(unittest.TestCase):
                     return 8000 if (logs.count('Did not cast, recasting...') == 4
                                     and not any(line.startswith('Audio level above threshold:') for line in logs)) else 0
                 actions, _ = self.run_fake(
-                    {'LAST_CAST_MAX': 1, 'MAX_RUN_TIME': 120, 'DONT_REEL_TIME': cutoff},
+                    {'MAX_RUN_TIME': 1200, 'DONT_REEL_TIME': cutoff},
                     stop_after_casts=None, audio_level=audio_level, logs=logs)
                 self.assertEqual(logs.count('Did not cast, recasting...'), 9)
                 self.assertEqual(actions.count('Casting'), 10)
@@ -323,13 +396,13 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual([name for name, _, _ in stages],
                          ['casting', 'listening', 'reaction', 'reeling', 'castdelay', 'casting', 'listening', 'stopping'])
         self.assertEqual(stages[0][:2], ('casting', .5))
-        self.assertEqual(stages[1][:2], ('listening', DEFAULTS['LAST_CAST_MAX']))
+        self.assertEqual(stages[1][:2], ('listening', DEFAULTS['WOW_FISHING_TIME']))
         self.assertEqual(stages[2][:2], ('reaction', 1.2))
         self.assertEqual(stages[3][:2], ('reeling', .5))
         self.assertEqual(stages[4][:2], ('castdelay', 1.2))
         for current, following in zip(stages[2:6], stages[3:7]):
             self.assertAlmostEqual(following[2] - current[2], current[1])
-        self.assertEqual(stages[6][1], DEFAULTS['LAST_CAST_MAX'])
+        self.assertAlmostEqual(stages[6][1], DEFAULTS['WOW_FISHING_TIME'])
 
     def test_skip_idle_timeout_and_interruption_stages(self):
         stages = []
@@ -343,8 +416,8 @@ class RuntimeTests(unittest.TestCase):
         self.run_fake({'DONT_REEL_TIME': 1.2, 'WOW_FISHING_TIME': 1}, stages=stages)
         self.assertEqual(next(duration for name, duration, _ in stages if name == 'skipping'), 0)
         stages.clear()
-        self.run_fake({'THRESHOLD': 10000, 'LAST_CAST_MAX': 1}, stages=stages)
-        self.assertEqual([name for name, _, _ in stages], ['startdelay', 'casting', 'listening', 'casting', 'listening', 'stopping'])
+        self.run_fake({'THRESHOLD': 10000}, stages=stages)
+        self.assertEqual([name for name, _, _ in stages], ['startdelay', 'casting', 'listening', 'reconciling', 'casting', 'listening', 'stopping'])
         stages.clear()
         self.run_fake(stop_on_delay=lambda d: 1 <= d < 3, stages=stages)
         self.assertEqual([name for name, _, _ in stages], ['startdelay', 'casting', 'listening', 'reaction', 'stopping'])

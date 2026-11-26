@@ -25,6 +25,9 @@ def get_normal_distribution(min_value, max_value, tail_probability,
 
 
 def for_config(config, prefix, mean=None):
+    if prefix == 'RECAST_TIME':
+        minimum = max(35, config['WOW_FISHING_TIME'] + 5)
+        return truncnorm(-2, math.inf, loc=minimum + 10, scale=5)
     modifier = config['REEL_TIME_MEAN_MAX_MODIFIER'] if prefix == 'REEL_TIME' else .6
     return distribution(config[prefix + '_MIN'], config[prefix + '_MAX'],
                         config[prefix + '_TAIL_PROBABILITY'], modifier, mean)
@@ -61,5 +64,5 @@ def preview(config, mode, scenario):
                 cutoff_skip=float(reel.sf(cutoff)), effective_limit=effective,
                 combined_skip=float(reel.sf(effective)),
                 guard_blocks=scenario <= config['REEL_TIME_DELAY_AFTER_CAST'],
-                recast_due=scenario > config['LAST_CAST_MAX'],
+                window_expired=scenario >= config['WOW_FISHING_TIME'],
                 above_reference=float(model.sf(config[prefix + '_MAX'])))

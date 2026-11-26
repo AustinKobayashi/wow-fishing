@@ -21,7 +21,8 @@
   startdelay:['Get ready to fish', 'Switch back to the game before the first key press.', 'Casting'],
   paused:['Paused', 'The session timer is paused.', 'Resume fishing to continue, or Stop fishing to end the session'],
   casting:['Casting', 'Pressing the fishing key, then releasing it.', 'Waiting for bite audio'],
-  listening:['Waiting for bite audio', 'Listening for audio above the bite threshold.', 'Reaction delay on detection, or recast on timeout'],
+  listening:['Waiting for bite audio', 'Listening for audio above the bite threshold during the fishing window.', 'Reaction delay on detection, or reconciliation wait'],
+  reconciling:['Waiting to recast', 'The fishing window ended. Audio triggers are disabled during this wait.', 'Casting, or pause after five consecutive timeouts'],
   reaction:['Waiting reaction delay', 'Bite audio detected. Waiting before the reel check.', 'Press reel key, or skip if the cutoff is reached'],
   reeling:['Pressing reel key', 'Pressing the fishing key, then releasing it.', 'Cast delay, with a possible idle break first'],
   skipping:['Waiting out fishing window', 'Reel skipped because the delay or window cutoff was reached.', 'Cast delay, with a possible idle break first'],
@@ -114,7 +115,7 @@
   fill.style.width = (stage.duration > 0 ? Math.min(100, 100 * remaining / stage.duration) : 0) + '%'
   if (stage.name === 'listening') {
    timer.textContent = elapsed.toFixed(1) + ' s listening'
-   caption.textContent = remaining > 0 ? 'Recast in ' + remaining.toFixed(1) + ' s' : 'Recast due. Waiting for bot.'
+   caption.textContent = remaining > 0 ? 'Listening ends in ' + remaining.toFixed(1) + ' s' : 'Listening window ended. Waiting for bot.'
   } else {
    timer.textContent = remaining.toFixed(1) + ' s remaining'
    caption.textContent = remaining > 0 ? 'Of ' + stage.duration.toFixed(1) + ' s in this stage' : 'Waiting for bot to change stage.'

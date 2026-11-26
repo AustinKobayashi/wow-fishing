@@ -242,7 +242,7 @@ function render(m) {
   wrapper.append(title,number)
   $('metrics').append(wrapper)
  })
- $('scenarioResult').textContent = !reel ? 'This curve uses the supplied reel sample as its mean before minimum truncation. Cast delay has no DONT_REEL_TIME cutoff. This is a conditional curve, not the overall cast distribution.' : m.guard_blocks ? 'At this age, the post-cast guard blocks detection. The timing branch would not run.' : m.recast_due ? 'At this age, the recast timeout is already due. The loop would recast before checking audio. Choose an earlier detection age.' : `At detection age ${m.scenario.toFixed(1)} s, the combined skip estimate is ${pct(m.combined_skip)} (≈ ${(1000*m.combined_skip).toFixed(1)} per 1,000 detections). Effective delay limit: ${m.effective_limit.toFixed(3)} s. Assumes negligible processing overhead. This is not a catch-success forecast.`
+ $('scenarioResult').textContent = !reel ? 'This curve uses the supplied reel sample as its mean before minimum truncation. Cast delay has no DONT_REEL_TIME cutoff. This is a conditional curve, not the overall cast distribution.' : m.guard_blocks ? 'At this age, the post-cast guard blocks detection. The timing branch would not run.' : m.window_expired ? 'At this age, the fishing window has ended and audio triggers are disabled. Choose an earlier detection age.' : `At detection age ${m.scenario.toFixed(1)} s, the combined skip estimate is ${pct(m.combined_skip)} (≈ ${(1000*m.combined_skip).toFixed(1)} per 1,000 detections). Effective delay limit: ${m.effective_limit.toFixed(3)} s. Assumes negligible processing overhead. This is not a catch-success forecast.`
 }
 function drawLogs() {
  const filter = $('filter').value.toLowerCase()
